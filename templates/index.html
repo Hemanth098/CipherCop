@@ -196,8 +196,27 @@
                     acc[category].push(permission);
                     return acc;
                 }, {});
+                
+                const contextualInputs = `
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4 border-b pb-4">Contextual Information (Model Input)</h3>
+                    <div class="grid md:grid-cols-3 gap-4 mb-6">
+                        <div>
+                            <label for="app_rating" class="block text-sm font-semibold text-gray-700">App Rating (1.0-5.0)</label>
+                            <input type="number" id="app_rating" step="0.1" min="1.0" max="5.0" value="4.5" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300" required>
+                        </div>
+                        <div>
+                            <label for="num_ratings" class="block text-sm font-semibold text-gray-700">Number of Ratings</label>
+                            <input type="number" id="num_ratings" value="150000" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300" required>
+                        </div>
+                        <div>
+                            <label for="dangerous_permissions_count" class="block text-sm font-semibold text-gray-700">Dangerous Permissions</label>
+                            <input type="number" id="dangerous_permissions_count" value="0" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 bg-gray-100 focus:outline-none transition-colors duration-300" readonly>
+                        </div>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4 border-b pb-4 mt-6">Application Permissions (Model Input)</h3>
+                `;
 
-                additionalFieldsHTML = Object.entries(featuresByCategory).map(([category, permissions]) => {
+                const permissionCheckboxesHTML = Object.entries(featuresByCategory).map(([category, permissions]) => {
                     const permissionCheckboxes = permissions.map(permission => {
                         const fullFeatureName = `${category} : ${permission}`;
                         return `
@@ -217,6 +236,8 @@
                         </div>
                     `;
                 }).join('');
+
+                additionalFieldsHTML = contextualInputs + permissionCheckboxesHTML;
             }
 
             return `
@@ -237,11 +258,8 @@
                                             <div class="absolute left-4 top-1/2 transform -translate-y-1/2"><svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
                                         </div>
                                     </div>
-                                    <div>
-                                        <h3 class="text-lg font-semibold text-gray-800 mb-4 border-t pt-6 mt-6">Application Permissions (Model Input)</h3>
-                                        <div class="space-y-4">
-                                            ${additionalFieldsHTML}
-                                        </div>
+                                    <div class="space-y-4">
+                                        ${additionalFieldsHTML}
                                     </div>
                                     <button type="submit" id="submit-btn-${type}" class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-8 rounded-2xl font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transform hover:scale-[1.02] transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
                                         <div class="flex items-center justify-center space-x-2">
@@ -285,6 +303,7 @@
             
             const mainInput = document.getElementById(`input-${type}`).value;
             const isWebsite = type === 'website';
+            // **FIX**: Correct the API endpoint path to match urls.py
             const apiEndpoint = isWebsite ? 'api/analyze-website/' : 'api/analyze-mobile-app/';
 
             let payload = { mainInput };
@@ -295,7 +314,10 @@
                 payload.web_traffic = document.getElementById('web_traffic').value;
                 payload.page_rank = document.getElementById('page_rank').value;
             } else {
-                // Collect data from all 51 permission checkboxes
+                payload.rating = document.getElementById('app_rating').value;
+                payload.num_ratings = document.getElementById('num_ratings').value;
+                payload.dangerous_permissions_count = document.getElementById('dangerous_permissions_count').value;
+                
                 payload.permissions = {};
                 mobileAppFeatures.forEach(feature => {
                     const checkbox = document.getElementById(feature);
@@ -334,9 +356,6 @@
                 </div>`;
             submitBtn.innerHTML = `<div class="flex items-center justify-center space-x-2"><div class="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>Analyzing...</span></div>`;
 
-            // *** START: REAL FETCH CALL TO BACKEND ***
-            // NOTE: The backend needs to be set up to handle the 'payload' object.
-            // For mobile apps, it will receive { mainInput: "App Name", permissions: { "feature1": 1, "feature2": 0, ... } }
             fetch(apiEndpoint, {
                 method: 'POST',
                 headers: {
@@ -346,7 +365,7 @@
             })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
+                    return response.json().then(err => { throw new Error(err.error || `HTTP error! Status: ${response.status}`) });
                 }
                 return response.json();
             })
@@ -414,6 +433,25 @@
 
             document.getElementById('form-website').addEventListener('submit', (e) => handleAnalyze(e, 'website'));
             document.getElementById('form-mobile-app').addEventListener('submit', (e) => handleAnalyze(e, 'mobile-app'));
+            
+            const mobileAppPage = document.getElementById('page-mobile-app');
+            if (mobileAppPage) {
+                mobileAppPage.addEventListener('change', (event) => {
+                    if (event.target.type === 'checkbox') {
+                        const dangerousCountInput = document.getElementById('dangerous_permissions_count');
+                        if (dangerousCountInput) {
+                            let count = 0;
+                            mobileAppFeatures.forEach(feature => {
+                                const checkbox = document.getElementById(feature);
+                                if (checkbox && checkbox.checked && feature.includes('(D)')) {
+                                    count++;
+                                }
+                            });
+                            dangerousCountInput.value = count;
+                        }
+                    }
+                });
+            }
 
             navigateTo('home');
         });

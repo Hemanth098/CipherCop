@@ -36,7 +36,6 @@ except FileNotFoundError:
 # 2. NEW Android Malware Model v3 (Context-Aware and Scaled)
 MOBILE_MODEL_V3_PATH = os.path.join(os.path.dirname(__file__), 'ml_model', 'model_app_v3.keras')
 FEATURES_V3_PATH = os.path.join(os.path.dirname(__file__), 'ml_model', 'model_app_features_v3.joblib')
-# SCALER_V3_PATH is no longer needed
 
 try:
     mobile_app_model = tf.keras.models.load_model(MOBILE_MODEL_V3_PATH, compile=False)
@@ -178,68 +177,98 @@ def analyze_website(request):
         except Exception as e: return JsonResponse({'error': f"Server error: {e}"}, status=500)
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
-
 @csrf_exempt
 def analyze_mobile_app_new(request):
-    """Handles new mobile app analysis using the v3 model."""
+    """Handles new mobile app analysis using the v3 model with heuristics + category sanity check."""
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             app_id = data.get('mainInput', 'N/A')
-            
+            category = data.get('category', '').strip()
+
             if not all([mobile_app_model, mobile_app_features, scaler]):
                 raise RuntimeError("The mobile app model v3 and its components are not available.")
 
-            # Create a dictionary with all required features, initialized to 0
+            # Features
             feature_dict = {col: 0 for col in mobile_app_features}
-            
-            # --- Populate the feature dictionary from incoming data ---
-            # Contextual features
-            feature_dict['Rating'] = float(data.get('rating', 0.0))
-            feature_dict['Number of ratings'] = int(data.get('num_ratings', 0))
-            feature_dict['Dangerous permissions count'] = int(data.get('dangerous_permissions_count', 0))
-            
-            # One-hot encoded category
-            category = data.get('category')
-            if category:
-                category_column = f"Category_{category}"
-                if category_column in feature_dict:
-                    feature_dict[category_column] = 1
+            rating = float(data.get('rating', 0.0))
+            num_ratings = int(data.get('num_ratings', 0))
+            dangerous_permissions_count = int(data.get('dangerous_permissions_count', 0))
 
-            # Permissions
+            feature_dict['Rating'] = rating
+            feature_dict['Number of ratings'] = num_ratings
+            feature_dict['Dangerous permissions count'] = dangerous_permissions_count
+
             permissions = data.get('permissions', {})
             for perm, value in permissions.items():
                 if perm in feature_dict:
                     feature_dict[perm] = value
-            
-            # Create a DataFrame from the dictionary to ensure correct column order for scaling
+
+            # DataFrame + scaling
             live_df = pd.DataFrame([feature_dict])
-            
-            # --- CRUCIAL: Scale the numerical features using the loaded scaler ---
             live_df[scaled_columns] = scaler.transform(live_df[scaled_columns])
-            
-            # Ensure final feature vector is in the exact order the model was trained on
             feature_vector = [live_df.iloc[0][col] for col in mobile_app_features]
-            # --- FIX: Ensure the data type matches the model's expectation ---
             features_for_model = np.array([feature_vector], dtype=np.float32)
-            
-            # Predict
+
+            # Prediction
             malware_probability = mobile_app_model.predict(features_for_model)[0][0]
             fraud_score = int(malware_probability * 100)
-            is_malicious = malware_probability > OPTIMAL_THRESHOLD
-            
-            category = 'High-Risk App' if is_malicious else 'Low-Risk App'
+
+            # -------------------------------
+            # Heuristic Corrections
+            # -------------------------------
+            if dangerous_permissions_count == 1:
+                fraud_score = min(fraud_score, 40)
+            if rating >= 4.0 and num_ratings > 10000:
+                fraud_score = int(fraud_score * 0.5)
+
+            # -------------------------------
+            # Category–Permission Sanity Rules
+            # -------------------------------
+            EXPECTED_PERMISSIONS = {
+                "Photography": [
+                    "Hardware controls : take pictures and videos (D)",
+                    "Hardware controls : record audio (D)",
+                    "Storage : modify/delete USB storage contents modify/delete SD card contents (D)"
+                ],
+                "Communication": [
+                    "Services that cost you money : send SMS messages (D)",
+                    "Your messages : read SMS or MMS (D)",
+                    "Your personal information : read contact data (D)"
+                ],
+                "Maps": [
+                    "Your location : coarse (network-based) location (D)",
+                    "Your location : fine (GPS) location (D)"
+                ]
+            }
+
+            if category in EXPECTED_PERMISSIONS:
+                requested = [p for p, v in permissions.items() if v == 1]
+                unexpected = [p for p in requested if p not in EXPECTED_PERMISSIONS[category]]
+                if unexpected:
+                    fraud_score = min(100, fraud_score + 30)  # bump risk for unexpected permissions
+
+            # Keep in [0,100]
+            fraud_score = max(0, min(100, fraud_score))
+
+            # Category
+            is_malicious = fraud_score > (OPTIMAL_THRESHOLD * 100)
+            final_category = 'High-Risk App' if is_malicious else 'Low-Risk App'
+
             details = (
-                f"The model assigned a risk score of {fraud_score}. This score is based on the app's category, user ratings, and the permissions it requests. " +
-                ("A high score suggests a pattern consistent with malicious applications." if is_malicious else "A low score suggests the app is likely safe.")
+                f"The model assigned a risk score of {fraud_score}. "
+                f"App category: {category or 'Unknown'}. "
+                + ("Detected unexpected permissions not typical for this app type." if category and unexpected else "")
             )
 
-            response_data = {
-                'url': app_id, 'fraudScore': fraud_score, 'category': category,
-                'analysisDetails': details, 'timestamp': datetime.now().isoformat()
-            }
-            return JsonResponse(response_data)
+            return JsonResponse({
+                'url': app_id,
+                'fraudScore': fraud_score,
+                'category': final_category,
+                'analysisDetails': details,
+                'timestamp': datetime.now().isoformat()
+            })
+
         except Exception as e:
             return JsonResponse({'error': f"A server error occurred: {str(e)}"}, status=500)
     return JsonResponse({'error': 'Invalid request method'}, status=405)
-

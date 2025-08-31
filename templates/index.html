@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CipherCop Security Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .animation-delay-150 { animation-delay: 150ms; }
+        .animation-delay-2000 { animation-delay: 2000ms; }
+        .animation-delay-4000 { animation-delay: 4000ms; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <header class="relative overflow-hidden bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900">
+        <div class="absolute inset-0 opacity-10">
+            <div class="absolute top-10 left-10 w-32 h-32 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl animate-pulse"></div>
+            <div class="absolute top-40 right-20 w-24 h-24 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl animate-pulse animation-delay-2000"></div>
+            <div class="absolute bottom-20 left-1/3 w-28 h-28 bg-cyan-400 rounded-full mix-blend-multiply filter blur-xl animate-pulse animation-delay-4000"></div>
+        </div>
+        <nav class="relative z-10 px-6 py-4">
+            <div class="flex items-center justify-between max-w-6xl mx-auto">
+                <div class="flex items-center space-x-2">
+                    <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                        </svg>
+                    </div>
+                    <h1 class="text-2xl font-bold text-white">CipherCop</h1>
+                </div>
+                <div class="hidden md:flex space-x-8">
+                    <button onclick="navigateTo('home')" class="text-white hover:text-blue-200 transition-colors duration-300 flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                        <span>Home</span>
+                    </button>
+                    <button onclick="navigateTo('website')" class="text-white hover:text-blue-200 transition-colors duration-300 flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                        <span>Website Analysis</span>
+                    </button>
+                    <button onclick="navigateTo('mobile-app')" class="text-white hover:text-blue-200 transition-colors duration-300 flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a1 1 0 001-1V4a1 1 0 00-1-1H8a1 1 0 00-1 1v16a1 1 0 001 1z"></path></svg>
+                        <span>Mobile App Analysis</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <div id="page-home" class="page-content">
+            <div class="relative bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+                <div class="relative overflow-hidden">
+                    <div class="absolute inset-0">
+                        <img src="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80" alt="Cybersecurity background" class="w-full h-full object-cover opacity-20">
+                        <div class="absolute inset-0 bg-gradient-to-r from-blue-900/70 to-purple-900/70"></div>
+                    </div>
+                    <div class="relative z-10 px-6 py-20">
+                        <div class="max-w-4xl mx-auto text-center">
+                            <div class="mb-8">
+                                <h1 class="text-6xl md:text-7xl font-bold text-white mb-6 leading-tight">Welcome to<span class="block bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">CipherCop</span></h1>
+                                <p class="text-xl md:text-2xl text-blue-100 mb-8 max-w-3xl mx-auto">Your AI-powered digital guardian against fraudulent websites and malicious applications. Protect yourself with cutting-edge threat detection technology.</p>
+                            </div>
+                            <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto mb-12">
+                                <div onclick="navigateTo('website')" class="group cursor-pointer bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition-all duration-300 transform hover:scale-105">
+                                    <div class="mb-6"><img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" alt="Website analysis" class="w-full h-48 object-cover rounded-2xl mb-4"></div>
+                                    <h3 class="text-2xl font-bold text-white mb-4">Website Analysis</h3>
+                                    <p class="text-blue-100 mb-6">Scan any website for phishing attempts, malware, and fraudulent content using advanced AI algorithms.</p>
+                                    <div class="flex items-center text-cyan-300 group-hover:text-cyan-200 transition-colors"><span class="mr-2">Analyze Website</span><svg class="w-5 h-5 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg></div>
+                                </div>
+                                <div onclick="navigateTo('mobile-app')" class="group cursor-pointer bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition-all duration-300 transform hover:scale-105">
+                                    <div class="mb-6"><img src="https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" alt="Mobile app analysis" class="w-full h-48 object-cover rounded-2xl mb-4"></div>
+                                    <h3 class="text-2xl font-bold text-white mb-4">Mobile App Analysis</h3>
+                                    <p class="text-blue-100 mb-6">Evaluate mobile applications for security vulnerabilities, privacy risks, and malicious behavior patterns.</p>
+                                    <div class="flex items-center text-cyan-300 group-hover:text-cyan-200 transition-colors"><span class="mr-2">Analyze App</span><svg class="w-5 h-5 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg></div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-8 max-w-2xl mx-auto">
+                                <div class="text-center"><div class="text-3xl font-bold text-cyan-300 mb-2">99.7%</div><div class="text-blue-100">Accuracy Rate</div></div>
+                                <div class="text-center"><div class="text-3xl font-bold text-cyan-300 mb-2">10M+</div><div class="text-blue-100">Sites Analyzed</div></div>
+                                <div class="text-center"><div class="text-3xl font-bold text-cyan-300 mb-2">24/7</div><div class="text-blue-100">Protection</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="relative py-20 px-6">
+                    <div class="max-w-6xl mx-auto">
+                        <h2 class="text-4xl font-bold text-center text-gray-800 mb-16">Advanced Security Features</h2>
+                        <div class="grid md:grid-cols-3 gap-8">
+                            <div class="bg-white rounded-2xl p-8 shadow-2xl hover:shadow-3xl transition-all duration-300 border border-gray-100"><div class="w-16 h-16 bg-gradient-to-r from-red-500 to-pink-500 rounded-2xl flex items-center justify-center mb-6"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg></div><h3 class="text-xl font-bold text-gray-800 mb-4">Phishing Detection</h3><p class="text-gray-600">Identifies fake websites and fraudulent login pages using machine learning algorithms.</p></div>
+                            <div class="bg-white rounded-2xl p-8 shadow-2xl hover:shadow-3xl transition-all duration-300 border border-gray-100"><div class="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl flex items-center justify-center mb-6"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg></div><h3 class="text-xl font-bold text-gray-800 mb-4">Malware Scanner</h3><p class="text-gray-600">Deep inspection of applications and websites for malicious code and suspicious behavior.</p></div>
+                            <div class="bg-white rounded-2xl p-8 shadow-2xl hover:shadow-3xl transition-all duration-300 border border-gray-100"><div class="w-16 h-16 bg-gradient-to-r from-green-500 to-blue-500 rounded-2xl flex items-center justify-center mb-6"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div><h3 class="text-xl font-bold text-gray-800 mb-4">Real-time Protection</h3><p class="text-gray-600">Continuous monitoring and instant threat detection with cloud-powered AI analysis.</p></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-website" class="page-content hidden">
+            </div>
+
+        <div id="page-mobile-app" class="page-content hidden">
+            </div>
+    </main>
+
+    <footer class="bg-slate-900 text-white py-12">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="grid md:grid-cols-3 gap-8">
+                <div>
+                    <div class="flex items-center space-x-2 mb-4">
+                        <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg></div>
+                        <h3 class="text-xl font-bold">CipherCop</h3>
+                    </div>
+                    <p class="text-gray-300">Advanced AI-powered security analysis platform protecting users from digital threats.</p>
+                </div>
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Security Features</h4>
+                    <ul class="space-y-2 text-gray-300">
+                        <li>• Real-time threat detection</li>
+                        <li>• Machine learning analysis</li>
+                        <li>• Privacy-first approach</li>
+                        <li>• 24/7 monitoring</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Contact</h4>
+                    <div class="space-y-2 text-gray-300">
+                        <p>📧 security@ciphercop.ai</p>
+                        <p>🔒 End-to-end encrypted</p>
+                        <p>🌐 Global threat intelligence</p>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2025 CipherCop. All rights reserved. Powered by advanced AI security algorithms.</p>
+            </div>
+        </div>
+    </footer>
+
+
+    <script>
+        // --- STATE MANAGEMENT ---
+        const pages = ['home', 'website', 'mobile-app'];
+
+        // --- HELPER FUNCTIONS ---
+        function getScoreColor(score) {
+            if (score > 70) return 'text-red-500';
+            if (score > 50) return 'text-orange-500';
+            return 'text-green-500';
+        }
+
+        function getScoreLabel(score) {
+            if (score > 70) return 'HIGH RISK';
+            if (score > 50) return 'MEDIUM RISK';
+            return 'SAFE';
+        }
+
+        // --- DYNAMIC PAGE TEMPLATE ---
+        function createAnalysisPageHTML(type) {
+            const isWebsite = type === 'website';
+            const title = isWebsite ? 'Website' : 'Mobile App';
+            const mainInputLabel = isWebsite ? 'Website URL' : 'Mobile App ID / Store URL';
+            const mainInputPlaceholder = isWebsite ? "https://example.com" : "com.example.app";
+
+            let additionalFieldsHTML = '';
+            if (isWebsite) {
+                additionalFieldsHTML = `
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="domain_registration_length" class="block text-sm font-semibold text-gray-700">Domain Registration Length (days)</label>
+                                <input type="number" id="domain_registration_length" placeholder="e.g., 365" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                            </div>
+                            <div>
+                                <label for="domain_age" class="block text-sm font-semibold text-gray-700">Domain Age (days)</label>
+                                <input type="number" id="domain_age" placeholder="e.g., 730" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                            </div>
+                            <div>
+                                <label for="web_traffic" class="block text-sm font-semibold text-gray-700">Web Traffic Rank</label>
+                                <input type="number" id="web_traffic" placeholder="e.g., 150000" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                            </div>
+                            <div>
+                                <label for="page_rank" class="block text-sm font-semibold text-gray-700">Page Rank (0-10)</label>
+                                <input type="number" id="page_rank" min="0" max="10" placeholder="e.g., 5" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                            </div>
+                        </div>
+                    `;
+            } else { // Mobile App
+                additionalFieldsHTML = `
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="app_age" class="block text-sm font-semibold text-gray-700">App Age (days)</label>
+                                <input type="number" id="app_age" placeholder="e.g., 365" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                            </div>
+                            <div>
+                                <label for="downloads" class="block text-sm font-semibold text-gray-700">Number of Downloads</label>
+                                <input type="text" id="downloads" placeholder="e.g., 1M+" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                            </div>
+                            <div>
+                                <label for="user_rating" class="block text-sm font-semibold text-gray-700">User Rating (1-5)</label>
+                                <input type="number" id="user_rating" step="0.1" min="1" max="5" placeholder="e.g., 4.5" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                            </div>
+                            <div>
+                                <label for="permissions" class="block text-sm font-semibold text-gray-700">Permissions Requested</label>
+                                <input type="number" id="permissions" placeholder="e.g., 8" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                            </div>
+                        </div>
+                    `;
+            }
+
+            return `
+                <div class="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100">
+                    <div class="relative py-12 px-6">
+                        <div class="absolute inset-0 opacity-10"><img src="https://images.unsplash.com/photo-1555949963-aa79dcee981c?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80" alt="Digital security" class="w-full h-full object-cover"></div>
+                        <div class="relative z-10 max-w-4xl mx-auto">
+                            <div class="text-center mb-12">
+                                <h1 class="text-5xl font-bold text-gray-800 mb-4">${title} Security Analysis</h1>
+                                <p class="text-xl text-gray-600 max-w-2xl mx-auto">Advanced AI-powered threat detection and security assessment for ${isWebsite ? 'web platforms' : 'mobile applications'}.</p>
+                            </div>
+                            <div class="bg-white/80 backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-white/50 mb-8">
+                                <form id="form-${type}" class="space-y-6">
+                                    <div class="relative">
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">${mainInputLabel}</label>
+                                        <div class="relative">
+                                            <input id="input-${type}" type="text" placeholder="${mainInputPlaceholder}" class="w-full px-6 py-4 text-lg rounded-2xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300 pl-14" required>
+                                            <div class="absolute left-4 top-1/2 transform -translate-y-1/2"><svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-gray-800 mb-4 border-t pt-6 mt-6">Advanced Parameters (Model Input)</h3>
+                                        ${additionalFieldsHTML}
+                                    </div>
+                                    <button type="submit" id="submit-btn-${type}" class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-8 rounded-2xl font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transform hover:scale-[1.02] transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <div class="flex items-center justify-center space-x-2">
+                                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                            <span>Start Analysis</span>
+                                        </div>
+                                    </button>
+                                </form>
+                            </div>
+                            <div id="error-container-${type}" class="hidden"></div>
+                            <div id="loading-container-${type}" class="hidden"></div>
+                            <div id="result-container-${type}" class="hidden"></div>
+                             <div id="info-cards-${type}" class="grid md:grid-cols-2 gap-8 mt-12">
+                                <div class="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-xl"><div class="flex items-center mb-4"><img src="https://images.unsplash.com/photo-1551808525-51a94da548ce?ixlib=rb-4.0.3&auto=format&fit=crop&w=100&q=80" alt="Privacy protection" class="w-16 h-16 rounded-full mr-4"><h3 class="text-xl font-bold text-gray-800">Privacy First</h3></div><p class="text-gray-600">Your data remains secure throughout the analysis process. We don't store personal information and all scans are performed in isolated environments for maximum privacy protection.</p></div>
+                                <div class="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-xl"><div class="flex items-center mb-4"><img src="https://images.unsplash.com/photo-1563013544-824ae1b704d3?ixlib=rb-4.0.3&auto=format&fit=crop&w=100&q=80" alt="Security shield" class="w-16 h-16 rounded-full mr-4"><h3 class="text-xl font-bold text-gray-800">How It Works</h3></div><p class="text-gray-600">Our AI analyzes multiple security indicators including domain reputation, SSL certificates, content patterns, and behavioral anomalies to provide comprehensive threat assessment.</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        // --- PAGE NAVIGATION ---
+        function navigateTo(pageId) {
+            pages.forEach(p => {
+                const pageElement = document.getElementById(`page-${p}`);
+                if (pageElement) {
+                    pageElement.classList.add('hidden');
+                }
+            });
+
+            const targetPage = document.getElementById(`page-${pageId}`);
+            if (targetPage) {
+                targetPage.classList.remove('hidden');
+            }
+            window.scrollTo(0, 0);
+        }
+
+        // --- ANALYSIS LOGIC ---
+        function handleAnalyze(event, type) {
+            event.preventDefault();
+
+            const formData = {
+                mainInput: document.getElementById(`input-${type}`).value,
+            };
+
+            const isWebsite = type === 'website';
+            // Define API endpoint based on type
+            const apiEndpoint = isWebsite ? 'api/analyze-website/' : 'api/analyze-mobile-app-new/';
+
+            if (isWebsite) {
+                formData.domain_registration_length = document.getElementById('domain_registration_length').value;
+                formData.domain_age = document.getElementById('domain_age').value;
+                formData.web_traffic = document.getElementById('web_traffic').value;
+                formData.page_rank = document.getElementById('page_rank').value;
+            } else {
+                formData.app_age = document.getElementById('app_age').value;
+                formData.downloads = document.getElementById('downloads').value;
+                formData.user_rating = document.getElementById('user_rating').value;
+                formData.permissions = document.getElementById('permissions').value;
+            }
+
+            const submitBtn = document.getElementById(`submit-btn-${type}`);
+            const errorContainer = document.getElementById(`error-container-${type}`);
+            const loadingContainer = document.getElementById(`loading-container-${type}`);
+            const resultContainer = document.getElementById(`result-container-${type}`);
+            const infoCards = document.getElementById(`info-cards-${type}`);
+
+            // Reset UI
+            submitBtn.disabled = true;
+            errorContainer.innerHTML = '';
+            errorContainer.classList.add('hidden');
+            resultContainer.innerHTML = '';
+            resultContainer.classList.add('hidden');
+            infoCards.classList.add('hidden');
+
+
+            // Show loading state
+            loadingContainer.classList.remove('hidden');
+            loadingContainer.innerHTML = `
+                <div class="bg-white/80 backdrop-blur-lg rounded-3xl p-12 shadow-2xl text-center">
+                    <div class="mb-6">
+                        <div class="relative w-24 h-24 mx-auto">
+                            <div class="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
+                            <div class="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+                            <div class="absolute inset-2 border-2 border-purple-200 rounded-full"></div>
+                            <div class="absolute inset-2 border-2 border-purple-600 rounded-full border-t-transparent animate-spin animation-delay-150"></div>
+                        </div>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-4">AI Analysis in Progress</h3>
+                    <p class="text-gray-600">Contacting server and scanning for threats...</p>
+                </div>`;
+            submitBtn.innerHTML = `<div class="flex items-center justify-center space-x-2"><div class="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>Analyzing...</span></div>`;
+
+            // *** START: REAL FETCH CALL TO BACKEND ***
+            fetch(apiEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(result => {
+                // Display results received from the backend
+                loadingContainer.classList.add('hidden');
+                resultContainer.classList.remove('hidden');
+                
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                const scoreColorClass = getScoreColor(result.fraudScore);
+                const scoreLabel = getScoreLabel(result.fraudScore);
+                const scoreLabelBg = result.fraudScore > 70 ? 'bg-red-500' : result.fraudScore > 50 ? 'bg-orange-500' : 'bg-green-500';
+                const strokeColor = result.fraudScore > 70 ? "#ef4444" : result.fraudScore > 50 ? "#f59e0b" : "#10b981";
+
+                resultContainer.innerHTML = `
+                    <div class="bg-white/90 backdrop-blur-lg rounded-3xl shadow-2xl overflow-hidden border border-white/50">
+                        <div class="bg-gradient-to-r from-blue-600 to-purple-600 p-6"><h2 class="text-3xl font-bold text-white flex items-center"><svg class="w-8 h-8 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>Security Analysis Report</h2></div>
+                        <div class="p-8">
+                            <div class="grid md:grid-cols-2 gap-8 mb-8">
+                                <div><h3 class="text-lg font-semibold text-gray-700 mb-2">Analyzed Target:</h3><p class="text-gray-600 break-all bg-gray-50 p-4 rounded-xl">${result.url}</p></div>
+                                <div class="text-center">
+                                    <div class="relative inline-block">
+                                        <div class="w-32 h-32 mx-auto mb-4 relative">
+                                            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                                                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e5e7eb" stroke-width="3"></path>
+                                                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="${strokeColor}" stroke-width="3" stroke-dasharray="${result.fraudScore}, 100" class="transition-all duration-1000"></path>
+                                            </svg>
+                                            <div class="absolute inset-0 flex items-center justify-center"><span class="text-2xl font-bold ${scoreColorClass}">${result.fraudScore}%</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="inline-block px-6 py-2 rounded-full font-bold text-white ${scoreLabelBg}">${scoreLabel}</div>
+                                </div>
+                            </div>
+                            <div class="space-y-6">
+                                <div class="bg-gray-50 rounded-2xl p-6"><h4 class="font-bold text-gray-800 mb-3 flex items-center"><svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z"></path></svg>Category Classification</h4><p class="text-gray-700 text-lg font-medium">${result.category}</p></div>
+                                <div class="bg-gray-50 rounded-2xl p-6"><h4 class="font-bold text-gray-800 mb-3 flex items-center"><svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>Detailed Analysis</h4><p class="text-gray-700 leading-relaxed">${result.analysisDetails}</p></div>
+                                <div class="text-center pt-4"><p class="text-sm text-gray-500">Analysis completed on ${new Date(result.timestamp).toLocaleDateString()} at ${new Date(result.timestamp).toLocaleTimeString()}</p></div>
+                            </div>
+                        </div>
+                    </div>`;
+            })
+            .catch(err => {
+                // Display error if fetch fails or backend returns an error
+                loadingContainer.classList.add('hidden');
+                errorContainer.classList.remove('hidden');
+                errorContainer.innerHTML = `
+                    <div class="bg-red-50 border-l-4 border-red-500 p-6 rounded-r-2xl mb-8">
+                        <div class="flex items-center">
+                            <svg class="w-6 h-6 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            <p class="text-red-700 font-medium">Analysis failed: ${err.message}. Please check the console and ensure the backend server is running.</p>
+                        </div>
+                    </div>`;
+            })
+            .finally(() => {
+                // Always reset the button
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<div class="flex items-center justify-center space-x-2"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg><span>Start Analysis</span></div>`;
+            });
+            // *** END: REAL FETCH CALL TO BACKEND ***
+        }
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Inject analysis page templates
+            document.getElementById('page-website').innerHTML = createAnalysisPageHTML('website');
+            document.getElementById('page-mobile-app').innerHTML = createAnalysisPageHTML('mobile-app');
+
+            // Add form submit listeners
+            document.getElementById('form-website').addEventListener('submit', (e) => handleAnalyze(e, 'website'));
+            document.getElementById('form-mobile-app').addEventListener('submit', (e) => handleAnalyze(e, 'mobile-app'));
+
+            // Set initial page view
+            navigateTo('home');
+        });
+    </script>
+
+</body>
+</html>

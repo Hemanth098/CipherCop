@@ -1,8 +1,6 @@
 from django.urls import path
 from . import views
 
-# This file maps the API endpoints to the view functions in views.py
-
 urlpatterns = [
     # Serves the main HTML page
     path('', views.index, name='index'),
@@ -10,9 +8,8 @@ urlpatterns = [
     # API endpoint for the website phishing analysis
     path('analyze-website/', views.analyze_website, name='analyze_website'),
     
-    # Original API endpoint for the mobile app (permissions only)
-    path('analyze-mobile-app/', views.analyze_mobile_app, name='analyze_mobile_app'),
+    # API endpoint for the new mobile app analysis (via Play Store URL)
+    path('analyze-mobile-app/', views.analyze_mobile_app_new, name='analyze_mobile_app'),
+    path('analyze_mobile_app_new/', views.analyze_mobile_app_new, name='analyze_mobile_app_new'),
     
-    # New API endpoint for the mobile app analysis using the form data and the new model
-    path('analyze-mobile-app-new/', views.analyze_mobile_app_new, name='analyze_mobile_app_new'),
 ]

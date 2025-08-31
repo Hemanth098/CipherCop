@@ -141,6 +141,9 @@
     <script>
         // --- STATE MANAGEMENT ---
         const pages = ['home', 'website', 'mobile-app'];
+        const mobileAppFeatures = [
+            'Default : modify battery statistics (S)', 'Default : power device on or off (S)', 'Hardware controls : change your audio settings (D)', 'Hardware controls : control flashlight (S)', 'Hardware controls : control vibrator (S)', 'Hardware controls : record audio (D)', 'Hardware controls : take pictures and videos (D)', 'Network communication : create Bluetooth connections (D)', 'Network communication : full Internet access (D)', 'Network communication : receive data from Internet (S)', 'Network communication : view Wi-Fi state (S)', 'Network communication : view network state (S)', 'Phone calls : intercept outgoing calls (D)', 'Phone calls : modify phone state (S)', 'Phone calls : read phone state and identity (D)', 'Services that cost you money : directly call phone numbers (D)', 'Services that cost you money : send SMS messages (D)', 'Storage : modify/delete USB storage contents modify/delete SD card contents (D)', 'System tools : automatically start at boot (S)', 'System tools : bluetooth administration (D)', 'System tools : change Wi-Fi state (D)', 'System tools : change network connectivity (D)', 'System tools : disable keylock (D)', 'System tools : display system-level alerts (D)', 'System tools : kill background processes (S)', 'System tools : modify global system settings (D)', 'System tools : mount and unmount filesystems (D)', 'System tools : prevent device from sleeping (D)', 'System tools : read sync settings (S)', 'System tools : retrieve running applications (D)', 'System tools : send sticky broadcast (S)', 'System tools : set wallpaper (S)', 'System tools : write sync settings (D)', 'Your accounts : act as an account authenticator (D)', 'Your accounts : discover known accounts (S)', 'Your accounts : manage the accounts list (D)', 'Your accounts : use the authentication credentials of an account (D)', 'Your location : access extra location provider commands (S)', 'Your location : coarse (network-based) location (D)', 'Your location : fine (GPS) location (D)', 'Your location : mock location sources for testing (D)', 'Your messages : edit SMS or MMS (D)', 'Your messages : read SMS or MMS (D)', 'Your messages : receive SMS (D)', 'Your personal information : add or modify calendar events and send email to guests (D)', "Your personal information : read Browser's history and bookmarks (D)", 'Your personal information : read calendar events (D)', 'Your personal information : read contact data (D)', 'Your personal information : read sensitive log data (D)', "Your personal information : write Browser's history and bookmarks (D)", 'Your personal information : write contact data (D)'
+        ];
 
         // --- HELPER FUNCTIONS ---
         function getScoreColor(score) {
@@ -159,8 +162,8 @@
         function createAnalysisPageHTML(type) {
             const isWebsite = type === 'website';
             const title = isWebsite ? 'Website' : 'Mobile App';
-            const mainInputLabel = isWebsite ? 'Website URL' : 'Mobile App ID / Store URL';
-            const mainInputPlaceholder = isWebsite ? "https://example.com" : "com.example.app";
+            const mainInputLabel = isWebsite ? 'Website URL' : 'Mobile App Name / ID';
+            const mainInputPlaceholder = isWebsite ? "https://example.com" : "e.g., My Awesome App";
 
             let additionalFieldsHTML = '';
             if (isWebsite) {
@@ -185,26 +188,35 @@
                         </div>
                     `;
             } else { // Mobile App
-                additionalFieldsHTML = `
-                        <div class="grid md:grid-cols-2 gap-4">
-                            <div>
-                                <label for="app_age" class="block text-sm font-semibold text-gray-700">App Age (days)</label>
-                                <input type="number" id="app_age" placeholder="e.g., 365" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                const featuresByCategory = mobileAppFeatures.reduce((acc, feature) => {
+                    const [category, permission] = feature.split(' : ');
+                    if (!acc[category]) {
+                        acc[category] = [];
+                    }
+                    acc[category].push(permission);
+                    return acc;
+                }, {});
+
+                additionalFieldsHTML = Object.entries(featuresByCategory).map(([category, permissions]) => {
+                    const permissionCheckboxes = permissions.map(permission => {
+                        const fullFeatureName = `${category} : ${permission}`;
+                        return `
+                            <div class="flex items-center">
+                                <input id="${fullFeatureName}" name="${fullFeatureName}" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                <label for="${fullFeatureName}" class="ml-3 text-sm text-gray-600">${permission}</label>
                             </div>
-                            <div>
-                                <label for="downloads" class="block text-sm font-semibold text-gray-700">Number of Downloads</label>
-                                <input type="text" id="downloads" placeholder="e.g., 1M+" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
-                            </div>
-                            <div>
-                                <label for="user_rating" class="block text-sm font-semibold text-gray-700">User Rating (1-5)</label>
-                                <input type="number" id="user_rating" step="0.1" min="1" max="5" placeholder="e.g., 4.5" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
-                            </div>
-                            <div>
-                                <label for="permissions" class="block text-sm font-semibold text-gray-700">Permissions Requested</label>
-                                <input type="number" id="permissions" placeholder="e.g., 8" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                        `;
+                    }).join('');
+
+                    return `
+                        <div class="bg-gray-50 p-4 rounded-xl border">
+                            <h4 class="font-semibold text-gray-800 mb-3">${category}</h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                ${permissionCheckboxes}
                             </div>
                         </div>
                     `;
+                }).join('');
             }
 
             return `
@@ -226,8 +238,10 @@
                                         </div>
                                     </div>
                                     <div>
-                                        <h3 class="text-lg font-semibold text-gray-800 mb-4 border-t pt-6 mt-6">Advanced Parameters (Model Input)</h3>
-                                        ${additionalFieldsHTML}
+                                        <h3 class="text-lg font-semibold text-gray-800 mb-4 border-t pt-6 mt-6">Application Permissions (Model Input)</h3>
+                                        <div class="space-y-4">
+                                            ${additionalFieldsHTML}
+                                        </div>
                                     </div>
                                     <button type="submit" id="submit-btn-${type}" class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-8 rounded-2xl font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transform hover:scale-[1.02] transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
                                         <div class="flex items-center justify-center space-x-2">
@@ -268,25 +282,25 @@
         // --- ANALYSIS LOGIC ---
         function handleAnalyze(event, type) {
             event.preventDefault();
+            
+            const mainInput = document.getElementById(`input-${type}`).value;
+            const isWebsite = type === 'website';
+            const apiEndpoint = isWebsite ? 'api/analyze-website/' : 'api/analyze-mobile-app/';
 
-            const formData = {
-                mainInput: document.getElementById(`input-${type}`).value,
-            };
+            let payload = { mainInput };
 
-            const isWebsite = type === 'website';
-            // Define API endpoint based on type
-            const apiEndpoint = isWebsite ? 'api/analyze-website/' : 'api/analyze-mobile-app-new/';
-
-            if (isWebsite) {
-                formData.domain_registration_length = document.getElementById('domain_registration_length').value;
-                formData.domain_age = document.getElementById('domain_age').value;
-                formData.web_traffic = document.getElementById('web_traffic').value;
-                formData.page_rank = document.getElementById('page_rank').value;
+            if (isWebsite) {
+                payload.domain_registration_length = document.getElementById('domain_registration_length').value;
+                payload.domain_age = document.getElementById('domain_age').value;
+                payload.web_traffic = document.getElementById('web_traffic').value;
+                payload.page_rank = document.getElementById('page_rank').value;
             } else {
-                formData.app_age = document.getElementById('app_age').value;
-                formData.downloads = document.getElementById('downloads').value;
-                formData.user_rating = document.getElementById('user_rating').value;
-                formData.permissions = document.getElementById('permissions').value;
+                // Collect data from all 51 permission checkboxes
+                payload.permissions = {};
+                mobileAppFeatures.forEach(feature => {
+                    const checkbox = document.getElementById(feature);
+                    payload.permissions[feature] = checkbox.checked ? 1 : 0;
+                });
             }
 
             const submitBtn = document.getElementById(`submit-btn-${type}`);
@@ -302,7 +316,6 @@
             resultContainer.innerHTML = '';
             resultContainer.classList.add('hidden');
             infoCards.classList.add('hidden');
-
 
             // Show loading state
             loadingContainer.classList.remove('hidden');
@@ -322,12 +335,14 @@
             submitBtn.innerHTML = `<div class="flex items-center justify-center space-x-2"><div class="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>Analyzing...</span></div>`;
 
             // *** START: REAL FETCH CALL TO BACKEND ***
+            // NOTE: The backend needs to be set up to handle the 'payload' object.
+            // For mobile apps, it will receive { mainInput: "App Name", permissions: { "feature1": 1, "feature2": 0, ... } }
             fetch(apiEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(payload)
             })
             .then(response => {
                 if (!response.ok) {
@@ -336,7 +351,6 @@
                 return response.json();
             })
             .then(result => {
-                // Display results received from the backend
                 loadingContainer.classList.add('hidden');
                 resultContainer.classList.remove('hidden');
                 
@@ -377,7 +391,6 @@
                     </div>`;
             })
             .catch(err => {
-                // Display error if fetch fails or backend returns an error
                 loadingContainer.classList.add('hidden');
                 errorContainer.classList.remove('hidden');
                 errorContainer.innerHTML = `
@@ -389,24 +402,19 @@
                     </div>`;
             })
             .finally(() => {
-                // Always reset the button
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = `<div class="flex items-center justify-center space-x-2"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg><span>Start Analysis</span></div>`;
             });
-            // *** END: REAL FETCH CALL TO BACKEND ***
         }
 
         // --- INITIALIZATION ---
         document.addEventListener('DOMContentLoaded', () => {
-            // Inject analysis page templates
             document.getElementById('page-website').innerHTML = createAnalysisPageHTML('website');
             document.getElementById('page-mobile-app').innerHTML = createAnalysisPageHTML('mobile-app');
 
-            // Add form submit listeners
             document.getElementById('form-website').addEventListener('submit', (e) => handleAnalyze(e, 'website'));
             document.getElementById('form-mobile-app').addEventListener('submit', (e) => handleAnalyze(e, 'mobile-app'));
 
-            // Set initial page view
             navigateTo('home');
         });
     </script>

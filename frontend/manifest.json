@@ -1,0 +1,10 @@
+{
+  "name": "CipherCop",
+  "version": "1.0.0",
+  "description": "An AI-powered phishing detector",
+  "permissions": ["activeTab"],
+  "action": {
+    "default_popup": "plugin_ui.html"
+  },
+  "manifest_version": 3
+}

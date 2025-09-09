@@ -132,10 +132,11 @@ def extract_features_from_url(url, overrides=None):
     except Exception:
         features_dict.update({'age_domain': -1, 'domain_registration_length': -1})
     for key in ['domain_age', 'domain_registration_length', 'web_traffic', 'page_rank', 'google_index']:
-        if key in overrides and overrides[key]: features_dict[key.replace('domain_age', 'age_domain')] = int(overrides[key])
+        if key in overrides and overrides[key] is not None and overrides[key] != '':
+            features_dict[key.replace('domain_age', 'age_domain')] = int(overrides[key])
     return features_dict
 
-# --- API Endpoints ---
+# --- Live PageRank API Function ---
 def get_domcop_page_rank(domain, api_key):
     """
     Fetches the Page Rank score from the Open PageRank API.
@@ -146,24 +147,17 @@ def get_domcop_page_rank(domain, api_key):
         return 0
 
     api_url = "https://openpagerank.com/api/v1.0/getPageRank"
-    headers = {
-        "API-OPR": api_key
-    }
-    params = {
-        "domains[]": domain
-    }
+    headers = {"API-OPR": api_key}
+    params = {"domains[]": domain}
 
     try:
         response = requests.get(api_url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
-
         if data and "response" in data and len(data["response"]) > 0:
             rank = data["response"][0].get("page_rank_integer", 0)
             return int(rank)
-        else:
-            return 0
-
+        return 0
     except requests.exceptions.RequestException as e:
         print(f"Error fetching Page Rank for {domain}: {e}")
         return 0
@@ -171,25 +165,25 @@ def get_domcop_page_rank(domain, api_key):
         print(f"Error parsing Open PageRank API response for {domain}: {e}")
         return 0
 
-# --- API Endpoints ---
+# --- API Endpoint for Website and Chrome Extension ---
 @csrf_exempt
 def analyze_website(request):
     if request.method == 'POST':
         try:
-            # --- IMPORTANT: Add your DomCop API Key here ---
             DOMCOP_API_KEY = "gwg8wgsc4o4wsg4w04g08c0ogsc88kck4owwgkc4" 
-
             data = json.loads(request.body)
-            url_to_analyze = data.get('mainInput')
+            
+            # FIX: Accept URL from either 'mainInput' (website) or 'url' (plugin)
+            url_to_analyze = data.get('mainInput') or data.get('url')
+            
             if not url_to_analyze:
-                return JsonResponse({'error': "URL is required."}, status=400)
+                return JsonResponse({'error': "URL is required in the request body."}, status=400)
 
             # --- Real-Time PageRank Fetching using DomCop ---
             parsed_url = urlparse(url_to_analyze)
             domain = parsed_url.netloc
             page_rank_score = get_domcop_page_rank(domain, DOMCOP_API_KEY)
             
-            # --- Feature Extraction ---
             overrides = {
                 'domain_registration_length': data.get('domain_registration_length'),
                 'domain_age': data.get('domain_age'),
@@ -201,25 +195,8 @@ def analyze_website(request):
             if 'error' in features_dict:
                 return JsonResponse({'error': features_dict['error']}, status=400)
 
-            # --- Model Prediction (Unchanged) ---
             feature_order = [
-                'length_url', 'length_hostname', 'ip', 'nb_dots', 'nb_hyphens', 'nb_at', 'nb_qm', 'nb_and',
-                'nb_or', 'nb_eq', 'nb_underscore', 'nb_tilde', 'nb_percent', 'nb_slash', 'nb_star',
-                'nb_colon', 'nb_comma', 'nb_semicolumn', 'nb_dollar', 'nb_space', 'nb_www', 'nb_com',
-                'nb_dslash', 'http_in_path', 'https_token', 'ratio_digits_url', 'ratio_digits_host',
-                'punycode', 'port', 'tld_in_path', 'tld_in_subdomain', 'abnormal_subdomain',
-                'nb_subdomains', 'prefix_suffix', 'random_domain', 'shortening_service', 'path_extension',
-                'nb_redirection', 'nb_external_redirection', 'length_words_raw', 'char_repeat',
-                'shortest_words_raw', 'shortest_word_host', 'shortest_word_path', 'longest_words_raw',
-                'longest_word_host', 'longest_word_path', 'avg_words_raw', 'avg_word_host',
-                'avg_word_path', 'phish_hints', 'suspecious_tld', 'statistical_report', 'nb_hyperlinks',
-                'ratio_intHyperlinks', 'ratio_extHyperlinks', 'ratio_nullHyperlinks', 'nb_extCSS',
-                'ratio_intRedirection', 'ratio_extRedirection', 'ratio_intErrors', 'ratio_extErrors',
-                'login_form', 'external_favicon', 'links_in_tags', 'submit_email', 'ratio_intMedia',
-                'ratio_extMedia', 'sfh', 'iframe', 'popup_window', 'safe_anchor', 'onmouseover',
-                'right_clic', 'empty_title', 'domain_in_ip', 'server_client_same_domain',
-                'check_redirection', 'age_domain', 'nb_page', 'google_index', 'dns_a_record', 'dnssec',
-                'whois_registered_domain', 'domain_registration_length', 'web_traffic', 'page_rank'
+                'length_url', 'length_hostname', 'ip', 'nb_dots', 'nb_hyphens', 'nb_at', 'nb_qm', 'nb_and', 'nb_or', 'nb_eq', 'nb_underscore', 'nb_tilde', 'nb_percent', 'nb_slash', 'nb_star', 'nb_colon', 'nb_comma', 'nb_semicolumn', 'nb_dollar', 'nb_space', 'nb_www', 'nb_com', 'nb_dslash', 'http_in_path', 'https_token', 'ratio_digits_url', 'ratio_digits_host', 'punycode', 'port', 'tld_in_path', 'tld_in_subdomain', 'abnormal_subdomain', 'nb_subdomains', 'prefix_suffix', 'random_domain', 'shortening_service', 'path_extension', 'nb_redirection', 'nb_external_redirection', 'length_words_raw', 'char_repeat', 'shortest_words_raw', 'shortest_word_host', 'shortest_word_path', 'longest_words_raw', 'longest_word_host', 'longest_word_path', 'avg_words_raw', 'avg_word_host', 'avg_word_path', 'phish_hints', 'suspecious_tld', 'statistical_report', 'nb_hyperlinks', 'ratio_intHyperlinks', 'ratio_extHyperlinks', 'ratio_nullHyperlinks', 'nb_extCSS', 'ratio_intRedirection', 'ratio_extRedirection', 'ratio_intErrors', 'ratio_extErrors', 'login_form', 'external_favicon', 'links_in_tags', 'submit_email', 'ratio_intMedia', 'ratio_extMedia', 'sfh', 'iframe', 'popup_window', 'safe_anchor', 'onmouseover', 'right_clic', 'empty_title', 'domain_in_ip', 'server_client_same_domain', 'check_redirection', 'age_domain', 'nb_page', 'google_index', 'dns_a_record', 'dnssec', 'whois_registered_domain', 'domain_registration_length', 'web_traffic', 'page_rank'
             ]
             
             features = np.array([[features_dict.get(k, 0) for k in feature_order]])
@@ -231,24 +208,27 @@ def analyze_website(request):
             score = int(prob * 100)
             
             return JsonResponse({
-            'url': url_to_analyze,
-            'fraudScore': score,
-            'category': 'Phishing' if score > 70 else ('Legitimate - But Might Cause Phishing' if score > 50 else 'Legitimate'),
-            'analysisDetails': (
-                f"Fraud score calculated as {score}%.!<br>"
-                f"Page Rank score {page_rank_score}/10 was included in the analysis.!<br>"
-                f"The site was categorized as {'Phishing' if score > 70 else ('Legitimate - But Might Cause Phishing' if score > 50 else 'Legitimate')}<br>"
-                f"because the score {'exceeded' if score > 50 else 'did not exceed'} the 50% threshold.<br>"
-                f"Additional checks such as SSL certificate, domain age, and URL patterns "
-                f"were factored into the scoring."
-            ),
-            'timestamp': datetime.now().isoformat()
+                'fraudScore': score,
+                'category': 'Phishing' if score > 70 else ('Legitimate - But Might Cause Phishing' if score > 50 else 'Legitimate'),
+                'analysisDetails': (
+                    f"Fraud score calculated as {score}%.!<br>"
+                    f"Page Rank score {page_rank_score}/10 was included in the analysis.!<br>"
+                    f"The site was categorized as {'Phishing' if score > 70 else ('Legitimate - But Might Cause Phishing' if score > 50 else 'Legitimate')}<br>"
+                    f"because the score {'exceeded' if score > 50 else 'did not exceed'} the 50% threshold.<br>"
+                    f"Additional checks such as SSL certificate, domain age, and URL patterns "
+                    f"were factored into the scoring."
+                ),
+                'timestamp': datetime.now().isoformat()
             })
 
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON in request body'}, status=400)
         except Exception as e:
-            return JsonResponse({'error': f"Server error: {e}"}, status=500)
+            return JsonResponse({'error': f"An unexpected server error occurred: {e}"}, status=500)
             
     return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+
 @csrf_exempt
 def analyze_mobile_app_new(request):
     """Handles new mobile app analysis using the v3 model with heuristics + category sanity check."""

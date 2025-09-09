@@ -146,47 +146,49 @@
         ];
 
         // --- HELPER FUNCTIONS ---
+        // *** CHANGED: Updated thresholds to match backend (65, 40) ***
         function getScoreColor(score) {
-            if (score > 70) return 'text-red-500';
-            if (score > 50) return 'text-orange-500';
+            if (score > 65) return 'text-red-500';
+            if (score > 40) return 'text-orange-500';
             return 'text-green-500';
         }
 
+        // *** CHANGED: Updated thresholds and labels to match backend ***
         function getScoreLabel(score) {
-            if (score > 70) return 'HIGH RISK';
-            if (score > 50) return 'MEDIUM RISK';
-            return 'SAFE';
+            if (score > 65) return 'HIGH RISK';
+            if (score > 40) return 'MEDIUM RISK';
+            return 'LOW RISK';
         }
 
         // --- DYNAMIC PAGE TEMPLATE ---
         function createAnalysisPageHTML(type) {
             const isWebsite = type === 'website';
             const title = isWebsite ? 'Website' : 'Mobile App';
-            const mainInputLabel = isWebsite ? 'Website URL' : 'Mobile App Name / ID';
-            const mainInputPlaceholder = isWebsite ? "https://example.com" : "e.g., My Awesome App";
+            const mainInputLabel = isWebsite ? 'Website URL' : 'Mobile App Name';
+            const mainInputPlaceholder = isWebsite ? "https://example.com" : "e.g., WhatsApp";
 
             let additionalFieldsHTML = '';
             if (isWebsite) {
                 additionalFieldsHTML = `
-                        <div class="grid md:grid-cols-2 gap-4">
-                            <div>
-                                <label for="domain_registration_length" class="block text-sm font-semibold text-gray-700">Domain Registration Length (days)</label>
-                                <input type="number" id="domain_registration_length" placeholder="e.g., 365" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
-                            </div>
-                            <div>
-                                <label for="domain_age" class="block text-sm font-semibold text-gray-700">Domain Age (days)</label>
-                                <input type="number" id="domain_age" placeholder="e.g., 730" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
-                            </div>
-                            <div>
-                                <label for="web_traffic" class="block text-sm font-semibold text-gray-700">Web Traffic Rank</label>
-                                <input type="number" id="web_traffic" placeholder="e.g., 150000" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
-                            </div>
-                            <div>
-                                <label for="page_rank" class="block text-sm font-semibold text-gray-700">Page Rank (0-10)</label>
-                                <input type="number" id="page_rank" min="0" max="10" placeholder="e.g., 5" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
-                            </div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="domain_registration_length" class="block text-sm font-semibold text-gray-700">Domain Registration Length (days)</label>
+                            <input type="number" id="domain_registration_length" placeholder="e.g., 365" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
                         </div>
-                    `;
+                        <div>
+                            <label for="domain_age" class="block text-sm font-semibold text-gray-700">Domain Age (days)</label>
+                            <input type="number" id="domain_age" placeholder="e.g., 730" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                        </div>
+                        <div>
+                            <label for="web_traffic" class="block text-sm font-semibold text-gray-700">Web Traffic Rank</label>
+                            <input type="number" id="web_traffic" placeholder="e.g., 150000" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                        </div>
+                        <div>
+                            <label for="page_rank" class="block text-sm font-semibold text-gray-700">Page Rank (0-10)</label>
+                            <input type="number" id="page_rank" min="0" max="10" placeholder="e.g., 5" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300">
+                        </div>
+                    </div>
+                `;
             } else { // Mobile App
                 const featuresByCategory = mobileAppFeatures.reduce((acc, feature) => {
                     const [category, permission] = feature.split(' : ');
@@ -199,7 +201,7 @@
                 
                 const contextualInputs = `
                     <h3 class="text-lg font-semibold text-gray-800 mb-4 border-b pb-4">Contextual Information (Model Input)</h3>
-                    <div class="grid md:grid-cols-3 gap-4 mb-6">
+                    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                         <div>
                             <label for="app_rating" class="block text-sm font-semibold text-gray-700">App Rating (1.0-5.0)</label>
                             <input type="number" id="app_rating" step="0.1" min="1.0" max="5.0" value="4.5" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300" required>
@@ -211,6 +213,19 @@
                         <div>
                             <label for="dangerous_permissions_count" class="block text-sm font-semibold text-gray-700">Dangerous Permissions</label>
                             <input type="number" id="dangerous_permissions_count" value="0" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 bg-gray-100 focus:outline-none transition-colors duration-300" readonly>
+                        </div>
+                        <div>
+                            <label for="app_category" class="block text-sm font-semibold text-gray-700">App Category</label>
+                            <select id="app_category" class="mt-1 w-full px-4 py-2 text-base rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors duration-300 bg-white">
+                                <option value="">Select a Category</option>
+                                <option value="Photography">Photography</option>
+                                <option value="Communication">Communication</option>
+                                <option value="Maps">Maps & Navigation</option>
+                                <option value="Shopping">Shopping</option>
+                                <option value="Finance">Finance</option>
+                                <option value="Games">Games</option>
+                                <option value="Other">Other</option>
+                            </select>
                         </div>
                     </div>
                     <h3 class="text-lg font-semibold text-gray-800 mb-4 border-b pb-4 mt-6">Application Permissions (Model Input)</h3>
@@ -303,8 +318,7 @@
             
             const mainInput = document.getElementById(`input-${type}`).value;
             const isWebsite = type === 'website';
-            // **FIX**: Correct the API endpoint path to match urls.py
-            const apiEndpoint = isWebsite ? 'api/analyze-website/' : 'api/analyze-mobile-app/';
+            const apiEndpoint = isWebsite ? '/api/analyze-website/' : '/api/analyze-mobile-app/';
 
             let payload = { mainInput };
 
@@ -317,11 +331,15 @@
                 payload.rating = document.getElementById('app_rating').value;
                 payload.num_ratings = document.getElementById('num_ratings').value;
                 payload.dangerous_permissions_count = document.getElementById('dangerous_permissions_count').value;
+                // *** NEW: Send app category to backend ***
+                payload.category = document.getElementById('app_category').value;
                 
                 payload.permissions = {};
                 mobileAppFeatures.forEach(feature => {
                     const checkbox = document.getElementById(feature);
-                    payload.permissions[feature] = checkbox.checked ? 1 : 0;
+                    if (checkbox) { // Check if checkbox exists before accessing properties
+                        payload.permissions[feature] = checkbox.checked ? 1 : 0;
+                    }
                 });
             }
 
@@ -351,8 +369,8 @@
                             <div class="absolute inset-2 border-2 border-purple-600 rounded-full border-t-transparent animate-spin animation-delay-150"></div>
                         </div>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-800 mb-4">AI Analysis in Progress</h3>
-                    <p class="text-gray-600">Contacting server and scanning for threats...</p>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-4">AI Analysis in Progress...</h3>
+                    <p class="text-gray-600">Our digital cop is on the case, scanning for threats and analyzing data. This may take a moment.</p>
                 </div>`;
             submitBtn.innerHTML = `<div class="flex items-center justify-center space-x-2"><div class="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>Analyzing...</span></div>`;
 
@@ -379,8 +397,9 @@
 
                 const scoreColorClass = getScoreColor(result.fraudScore);
                 const scoreLabel = getScoreLabel(result.fraudScore);
-                const scoreLabelBg = result.fraudScore > 70 ? 'bg-red-500' : result.fraudScore > 50 ? 'bg-orange-500' : 'bg-green-500';
-                const strokeColor = result.fraudScore > 70 ? "#ef4444" : result.fraudScore > 50 ? "#f59e0b" : "#10b981";
+                // *** CHANGED: Updated thresholds to match backend (65, 40) ***
+                const scoreLabelBg = result.fraudScore > 65 ? 'bg-red-500' : result.fraudScore > 40 ? 'bg-orange-500' : 'bg-green-500';
+                const strokeColor = result.fraudScore > 65 ? "#ef4444" : result.fraudScore > 40 ? "#f97316" : "#22c55e";
 
                 resultContainer.innerHTML = `
                     <div class="bg-white/90 backdrop-blur-lg rounded-3xl shadow-2xl overflow-hidden border border-white/50">
@@ -416,7 +435,7 @@
                     <div class="bg-red-50 border-l-4 border-red-500 p-6 rounded-r-2xl mb-8">
                         <div class="flex items-center">
                             <svg class="w-6 h-6 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                            <p class="text-red-700 font-medium">Analysis failed: ${err.message}. Please check the console and ensure the backend server is running.</p>
+                            <p class="text-red-700 font-medium">Analysis failed: ${err.message}. Please check your input and ensure the backend server is running.</p>
                         </div>
                     </div>`;
             })

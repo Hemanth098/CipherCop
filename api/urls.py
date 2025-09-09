@@ -9,7 +9,7 @@ urlpatterns = [
     path('analyze-website/', views.analyze_website, name='analyze_website'),
     
     # API endpoint for the new mobile app analysis (via Play Store URL)
-    path('analyze-mobile-app/', views.analyze_mobile_app_new, name='analyze_mobile_app'),
+    path('analyze-mobile-app/', views.analyze_mobile_app_new, name='analyze_mobile_app_new'),
     path('analyze_mobile_app_new/', views.analyze_mobile_app_new, name='analyze_mobile_app_new'),
     
 ]

@@ -15,6 +15,9 @@ import whois
 from datetime import datetime
 import itertools
 import tensorflow as tf
+from . import ml_helpers  # Import the helper functions 
+ml_helpers.setup_nltk()
+ml_models = ml_helpers.load_all_models()
 from sklearn.preprocessing import StandardScaler # Import StandardScaler
  # Assuming functions.py is in the same directory
 # --- View to Serve the Homepage ---
@@ -23,16 +26,10 @@ def index(request):
     return render(request, 'index.html')
 
 # --- Load Machine Learning Models ---
-
-# 1. Website Phishing Model (Unchanged)
-WEB_MODEL_PATH = os.path.join(os.path.dirname(__file__), 'ml_model', 'model_web.joblib')
-try:
-    web_model = joblib.load(WEB_MODEL_PATH)
-    print("Successfully loaded website phishing model (model_web.joblib).")
-except FileNotFoundError:
-    print(f"Warning: Website model not found at {WEB_MODEL_PATH}.")
-    web_model = None
-
+web_model = ml_models.get('web_model')
+mobile_model_components = ml_models.get('mobile_model_components')
+sentiment_model = ml_models.get('sentiment_model')
+tfidf_vectorizer = ml_models.get('tfidf_vectorizer')
 # 2. NEW Android Malware Model v3 (Context-Aware and Scaled)
 MOBILE_MODEL_V3_PATH = os.path.join(os.path.dirname(__file__), 'ml_model', 'model_app_v3.keras')
 FEATURES_V3_PATH = os.path.join(os.path.dirname(__file__), 'ml_model', 'model_app_features_v3.joblib')
@@ -83,7 +80,7 @@ def extract_features_from_url(url, overrides=None):
         'login_form', 'external_favicon', 'links_in_tags', 'submit_email', 'ratio_intMedia',
         'ratio_extMedia', 'sfh', 'iframe', 'popup_window', 'safe_anchor', 'onmouseover',
         'right_clic', 'empty_title', 'domain_in_ip', 'server_client_same_domain',
-        'check_redirection', 'age_domain', 'nb_page', 'google_index', 'dns_a_record', 'dnssec',
+        'check_redirection', 'age_domain', 'nb_page', 'dns_a_record', 'dnssec',
         'whois_registered_domain', 'domain_registration_length', 'web_traffic', 'page_rank'
     ]
     features_dict = {feature: 0 for feature in feature_columns}
@@ -131,9 +128,12 @@ def extract_features_from_url(url, overrides=None):
         features_dict['whois_registered_domain'] = 1 if domain_info.domain_name else 0
     except Exception:
         features_dict.update({'age_domain': -1, 'domain_registration_length': -1})
-    for key in ['domain_age', 'domain_registration_length', 'web_traffic', 'page_rank', 'google_index']:
+    
+    # Update with manual overrides (google_index removed from loop)
+    for key in ['domain_age', 'domain_registration_length', 'web_traffic', 'page_rank']:
         if key in overrides and overrides[key] is not None and overrides[key] != '':
             features_dict[key.replace('domain_age', 'age_domain')] = int(overrides[key])
+            
     return features_dict
 
 # --- Live PageRank API Function ---
@@ -157,13 +157,13 @@ def get_domcop_page_rank(domain, api_key):
         if data and "response" in data and len(data["response"]) > 0:
             rank = data["response"][0].get("page_rank_integer", 0)
             return int(rank)
-        return 0
+        return 5  # Default to 5 if no rank found
     except requests.exceptions.RequestException as e:
         print(f"Error fetching Page Rank for {domain}: {e}")
-        return 0
+        raise ValueError("Could not connect to the Page Rank service. Please check your internet connection and try again.")
     except (KeyError, ValueError, json.JSONDecodeError) as e:
         print(f"Error parsing Open PageRank API response for {domain}: {e}")
-        return 0
+        raise ValueError("Could not Found Page Rank score for the provided domain.")
 
 # --- API Endpoint for Website and Chrome Extension ---
 @csrf_exempt
@@ -208,6 +208,7 @@ def analyze_website(request):
             score = int(prob * 100)
             
             return JsonResponse({
+                'url': url_to_analyze,
                 'fraudScore': score,
                 'category': 'Phishing' if score > 70 else ('Legitimate - But Might Cause Phishing' if score > 50 else 'Legitimate'),
                 'analysisDetails': (
@@ -215,8 +216,6 @@ def analyze_website(request):
                     f"Page Rank score {page_rank_score}/10 was included in the analysis.!<br>"
                     f"The site was categorized as {'Phishing' if score > 70 else ('Legitimate - But Might Cause Phishing' if score > 50 else 'Legitimate')}<br>"
                     f"because the score {'exceeded' if score > 50 else 'did not exceed'} the 50% threshold.<br>"
-                    f"Additional checks such as SSL certificate, domain age, and URL patterns "
-                    f"were factored into the scoring."
                 ),
                 'timestamp': datetime.now().isoformat()
             })
@@ -231,96 +230,84 @@ def analyze_website(request):
 
 @csrf_exempt
 def analyze_mobile_app_new(request):
-    """Handles new mobile app analysis using the v3 model with heuristics + category sanity check."""
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            app_id = data.get('mainInput', 'N/A')
-            category = data.get('category', '').strip()
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
 
-            if not all([mobile_app_model, mobile_app_features, scaler]):
-                raise RuntimeError("The mobile app model v3 and its components are not available.")
+    try:
+        data = json.loads(request.body)
+        app_name = data.get('mainInput')
+        category = data.get('category')
+        permissions_from_user = data.get('permissions', {})
 
-            # Features
-            feature_dict = {col: 0 for col in mobile_app_features}
-            rating = float(data.get('rating', 0.0))
-            num_ratings = int(data.get('num_ratings', 0))
-            dangerous_permissions_count = int(data.get('dangerous_permissions_count', 0))
+        if not category:
+            return JsonResponse({'error': 'App Category is a required field.'}, status=400)
 
-            feature_dict['Rating'] = rating
-            feature_dict['Number of ratings'] = num_ratings
-            feature_dict['Dangerous permissions count'] = dangerous_permissions_count
+        # Get a list of the permissions the user actually ticked
+        ticked_permissions = [perm for perm, value in permissions_from_user.items() if value == 1]
+        
+        # Check for suspicious permissions based on the rules in ml_helpers.py
+        suspicious_permissions = ml_helpers.check_fraud_by_rules(category, ticked_permissions)
+        suspicious_count = len(suspicious_permissions)
+        
+        fraud_score = 0
+        analysis_details = ""
+        final_category = "Low-Risk App"
 
-            permissions = data.get('permissions', {})
-            for perm, value in permissions.items():
-                if perm in feature_dict:
-                    feature_dict[perm] = value
+        # --- Implement the New Rule Set ---
 
-            # DataFrame + scaling
-            live_df = pd.DataFrame([feature_dict])
-            live_df[scaled_columns] = scaler.transform(live_df[scaled_columns])
-            feature_vector = [live_df.iloc[0][col] for col in mobile_app_features]
-            features_for_model = np.array([feature_vector], dtype=np.float32)
+        if suspicious_count >= 5:
+            # Rule: 5 or more violations is definitely fraud.
+            fraud_score = 95
+            final_category = "High-Risk App"
+            perm_list = ", ".join(suspicious_permissions)
+            analysis_details = f"High-Risk Detected. The app requests {suspicious_count} permissions that are highly unusual for a '{category}' app, including: {perm_list}."
 
-            # Prediction
-            malware_probability = mobile_app_model.predict(features_for_model)[0][0]
-            fraud_score = int(malware_probability * 100)
+        elif 1 <= suspicious_count <= 4:
+            # Rule: 1 to 4 violations require a review check.
+            analysis_details = f"The app requests {suspicious_count} suspicious permission(s) for a '{category}' app. Checking user reviews to confirm..."
+            
+            found_app_id = ml_helpers.get_app_id_from_name(app_name)
+            
+            if not found_app_id:
+                # Special Rule: If the app has ANY violation AND cannot be found on the Play Store, it's fraud.
+                fraud_score = 90
+                final_category = "High-Risk App"
+                analysis_details = f"High-Risk Detected. The app has {suspicious_count} suspicious permission(s) and could not be found on the Google Play Store, which is a strong indicator of fraudulent activity."
+            else:
+                # App was found, so proceed to analyze reviews.
+                sentiment_score = 0.5  # Default to neutral
+                review_texts = ml_helpers.scrape_review_texts(found_app_id)
+                
+                if review_texts and sentiment_model and tfidf_vectorizer:
+                    processed_reviews = [ml_helpers.PreProcessText(r) for r in review_texts]
+                    predictions = sentiment_model.predict(tfidf_vectorizer.transform(processed_reviews))
+                    numerical_predictions = [1 if p == 'positive' else 0 for p in predictions]
+                    if numerical_predictions:
+                        sentiment_score = np.mean(numerical_predictions)
+                
+                # Rule: Are the reviews positive enough to overlook the violations?
+                if sentiment_score > 0.6: # More than 60% positive reviews
+                    fraud_score = 55
+                    final_category = "Medium-Risk App"
+                    analysis_details += f" User reviews are generally positive (Sentiment Score: {sentiment_score:.0%}), which lowers the risk. However, caution is still advised due to the unusual permissions."
+                else:
+                    fraud_score = 85
+                    final_category = "High-Risk App"
+                    analysis_details += f" The app's user reviews are neutral or negative (Sentiment Score: {sentiment_score:.0%}). Combined with the suspicious permissions, this indicates a high risk."
+        
+        else: # suspicious_count == 0
+            # Rule: No violations, the app is considered safe.
+            fraud_score = 10
+            final_category = "Low-Risk App"
+            analysis_details = f"Low-Risk Detected. No suspicious permissions were found for the '{category}' category. The app appears to follow standard practices."
 
-            # -------------------------------
-            # Heuristic Corrections
-            # -------------------------------
-            if dangerous_permissions_count == 1:
-                fraud_score = min(fraud_score, 40)
-            if rating >= 4.0 and num_ratings > 10000:
-                fraud_score = int(fraud_score * 0.5)
+        return JsonResponse({
+            'url': app_name,
+            'fraudScore': fraud_score,
+            'category': final_category,
+            'analysisDetails': analysis_details,
+            'timestamp': datetime.now().isoformat()
+        })
 
-            # -------------------------------
-            # Category–Permission Sanity Rules
-            # -------------------------------
-            EXPECTED_PERMISSIONS = {
-                "Photography": [
-                    "Hardware controls : take pictures and videos (D)",
-                    "Hardware controls : record audio (D)",
-                    "Storage : modify/delete USB storage contents modify/delete SD card contents (D)"
-                ],
-                "Communication": [
-                    "Services that cost you money : send SMS messages (D)",
-                    "Your messages : read SMS or MMS (D)",
-                    "Your personal information : read contact data (D)"
-                ],
-                "Maps": [
-                    "Your location : coarse (network-based) location (D)",
-                    "Your location : fine (GPS) location (D)"
-                ]
-            }
-
-            if category in EXPECTED_PERMISSIONS:
-                requested = [p for p, v in permissions.items() if v == 1]
-                unexpected = [p for p in requested if p not in EXPECTED_PERMISSIONS[category]]
-                if unexpected:
-                    fraud_score = min(100, fraud_score + 30)  # bump risk for unexpected permissions
-
-            # Keep in [0,100]
-            fraud_score = max(0, min(100, fraud_score))
-
-            # Category
-            is_malicious = fraud_score > (OPTIMAL_THRESHOLD * 100)
-            final_category = 'High-Risk App' if is_malicious else 'Low-Risk App'
-
-            details = (
-                f"The model assigned a risk score of {fraud_score}. "
-                f"App category: {category or 'Unknown'}. "
-                + ("Detected unexpected permissions not typical for this app type." if category and unexpected else "")
-            )
-
-            return JsonResponse({
-                'url': app_id,
-                'fraudScore': fraud_score,
-                'category': final_category,
-                'analysisDetails': details,
-                'timestamp': datetime.now().isoformat()
-            })
-
-        except Exception as e:
-            return JsonResponse({'error': f"A server error occurred: {str(e)}"}, status=500)
-    return JsonResponse({'error': 'Invalid request method'}, status=405)
+    except Exception as e:
+        return JsonResponse({'error': f"A server error occurred: {str(e)}"}, status=500)

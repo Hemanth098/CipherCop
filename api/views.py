@@ -16,7 +16,7 @@ from datetime import datetime
 import itertools
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler # Import StandardScaler
-
+ # Assuming functions.py is in the same directory
 # --- View to Serve the Homepage ---
 def index(request):
     """Serves the main index.html file."""
@@ -136,16 +136,72 @@ def extract_features_from_url(url, overrides=None):
     return features_dict
 
 # --- API Endpoints ---
+def get_domcop_page_rank(domain, api_key):
+    """
+    Fetches the Page Rank score from the Open PageRank API.
+    Returns an integer score (0-10) or 0 if an error occurs.
+    """
+    if not api_key:
+        print("Warning: Open PageRank API key is missing.")
+        return 0
+
+    api_url = "https://openpagerank.com/api/v1.0/getPageRank"
+    headers = {
+        "API-OPR": api_key
+    }
+    params = {
+        "domains[]": domain
+    }
+
+    try:
+        response = requests.get(api_url, headers=headers, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        if data and "response" in data and len(data["response"]) > 0:
+            rank = data["response"][0].get("page_rank_integer", 0)
+            return int(rank)
+        else:
+            return 0
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching Page Rank for {domain}: {e}")
+        return 0
+    except (KeyError, ValueError, json.JSONDecodeError) as e:
+        print(f"Error parsing Open PageRank API response for {domain}: {e}")
+        return 0
+
+# --- API Endpoints ---
 @csrf_exempt
 def analyze_website(request):
     if request.method == 'POST':
         try:
+            # --- IMPORTANT: Add your DomCop API Key here ---
+            DOMCOP_API_KEY = "gwg8wgsc4o4wsg4w04g08c0ogsc88kck4owwgkc4" 
+
             data = json.loads(request.body)
             url_to_analyze = data.get('mainInput')
-            if not url_to_analyze: return JsonResponse({'error': "URL is required."}, status=400)
-            overrides = {k: data.get(k) for k in ['domain_registration_length', 'domain_age', 'web_traffic', 'page_rank']}
+            if not url_to_analyze:
+                return JsonResponse({'error': "URL is required."}, status=400)
+
+            # --- Real-Time PageRank Fetching using DomCop ---
+            parsed_url = urlparse(url_to_analyze)
+            domain = parsed_url.netloc
+            page_rank_score = get_domcop_page_rank(domain, DOMCOP_API_KEY)
+            
+            # --- Feature Extraction ---
+            overrides = {
+                'domain_registration_length': data.get('domain_registration_length'),
+                'domain_age': data.get('domain_age'),
+                'web_traffic': data.get('web_traffic'),
+                'page_rank': page_rank_score  # Use the fetched score from DomCop
+            }
+
             features_dict = extract_features_from_url(url_to_analyze, overrides)
-            if 'error' in features_dict: return JsonResponse({'error': features_dict['error']}, status=400)
+            if 'error' in features_dict:
+                return JsonResponse({'error': features_dict['error']}, status=400)
+
+            # --- Model Prediction (Unchanged) ---
             feature_order = [
                 'length_url', 'length_hostname', 'ip', 'nb_dots', 'nb_hyphens', 'nb_at', 'nb_qm', 'nb_and',
                 'nb_or', 'nb_eq', 'nb_underscore', 'nb_tilde', 'nb_percent', 'nb_slash', 'nb_star',
@@ -165,18 +221,34 @@ def analyze_website(request):
                 'check_redirection', 'age_domain', 'nb_page', 'google_index', 'dns_a_record', 'dnssec',
                 'whois_registered_domain', 'domain_registration_length', 'web_traffic', 'page_rank'
             ]
+            
             features = np.array([[features_dict.get(k, 0) for k in feature_order]])
-            if not web_model: return JsonResponse({'error': "Web model not available."}, status=503)
+            
+            if not web_model:
+                return JsonResponse({'error': "Web model not available."}, status=503)
+                
             prob = web_model.predict_proba(features)[0][1]
             score = int(prob * 100)
+            
             return JsonResponse({
-                'url': url_to_analyze, 'fraudScore': score,
-                'category': 'Phishing' if score > 70 else 'Legitimate',
-                'analysisDetails': "Analysis complete.", 'timestamp': datetime.now().isoformat()
+            'url': url_to_analyze,
+            'fraudScore': score,
+            'category': 'Phishing' if score > 70 else ('Legitimate - But Might Cause Phishing' if score > 50 else 'Legitimate'),
+            'analysisDetails': (
+                f"Fraud score calculated as {score}%.!<br>"
+                f"Page Rank score {page_rank_score}/10 was included in the analysis.!<br>"
+                f"The site was categorized as {'Phishing' if score > 70 else ('Legitimate - But Might Cause Phishing' if score > 50 else 'Legitimate')}<br>"
+                f"because the score {'exceeded' if score > 50 else 'did not exceed'} the 50% threshold.<br>"
+                f"Additional checks such as SSL certificate, domain age, and URL patterns "
+                f"were factored into the scoring."
+            ),
+            'timestamp': datetime.now().isoformat()
             })
-        except Exception as e: return JsonResponse({'error': f"Server error: {e}"}, status=500)
-    return JsonResponse({'error': 'Invalid request method'}, status=405)
 
+        except Exception as e:
+            return JsonResponse({'error': f"Server error: {e}"}, status=500)
+            
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
 @csrf_exempt
 def analyze_mobile_app_new(request):
     """Handles new mobile app analysis using the v3 model with heuristics + category sanity check."""

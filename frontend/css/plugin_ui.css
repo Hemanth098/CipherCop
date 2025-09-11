@@ -1,0 +1,112 @@
+/* --- CUSTOMIZATION SECTION --- */
+/* Change these variables to match your website's branding */
+:root {
+    --primary-color: #007BFF;   /* Your website's main brand color */
+    --background-color: #F8F9FA;/* A light background color */
+    --text-color: #212529;      /* Your primary text color */
+    --border-radius: 12px;      /* The roundness of corners */
+    --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Your website's font */
+
+    /* Status Colors */
+    --safe-color: #28A745;
+    --warning-color: #FFC107;
+    --danger-color: #DC3545;
+}
+/* --- END CUSTOMIZATION --- */
+
+
+/* General Styles */
+body {
+    font-family: var(--font-family);
+    background-color: var(--background-color);
+    color: var(--text-color);
+    width: 350px;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    padding: 20px;
+    text-align: center;
+}
+
+/* Header Styles */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 15px;
+}
+
+.logo {
+    width: 32px;
+    height: 32px;
+    margin-right: 12px;
+}
+
+.header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--primary-color);
+}
+
+/* Content and Result Styles */
+.content {
+    display: none; /* Hidden by default, shown by JS */
+}
+
+.result-box {
+    padding: 20px;
+    border-radius: var(--border-radius);
+    margin-bottom: 15px;
+    transition: background-color 0.3s ease;
+}
+
+.score {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.status {
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.details {
+    font-size: 14px;
+    color: #6c757d;
+    line-height: 1.5;
+}
+
+/* Dynamic Status Colors */
+.result-box.safe { background-color: #eaf6ec; color: var(--safe-color); }
+.result-box.warning { background-color: #fff8e1; color: #856404; }
+.result-box.danger { background-color: #f8d7da; color: var(--danger-color); }
+
+/* Loader/Spinner Styles */
+.loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 150px;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

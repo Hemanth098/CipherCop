@@ -140,12 +140,16 @@ def load_all_models():
 
     # 3. Review Sentiment Model
     try:
-        models['sentiment_model'] = joblib.load(os.path.join(base_dir, 'ml_model', './ml_model/sentiment_model.joblib'))
-        models['tfidf_vectorizer'] = joblib.load(os.path.join(base_dir, 'ml_model', './ml_model/tfidf_vectorizer.joblib'))
+        models['sentiment_model'] = joblib.load(os.path.join(base_dir, 'ml_model', 'sentiment_model.joblib'))
         print("✅ Successfully loaded review sentiment model.")
     except FileNotFoundError:
-        print("⚠️ Warning: Sentiment model or vectorizer not found.")
+        print("⚠️ Warning: Sentiment model not found.")
         models['sentiment_model'] = None
+    try:
+        models['tfidf_vectorizer'] = joblib.load(os.path.join(base_dir, 'ml_model', 'tfidf_vectorizer.joblib'))
+        print("✅ Successfully loaded TF-IDF vectorizer.")
+    except FileNotFoundError:
+        print("⚠️ Warning: TF-IDF vectorizer not found.")
         models['tfidf_vectorizer'] = None
         
     return models

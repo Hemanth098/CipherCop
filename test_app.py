@@ -1,172 +1,158 @@
-import time
-import re
 import os
 import joblib
 import numpy as np
-import nltk
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
-from nltk.tokenize import word_tokenize
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
-from bs4 import BeautifulSoup
+from pyaxmlparser import APK
+import warnings
+import hashlib
+import requests
+import json
 
-# --- Part 1: Load the Saved ML Model and Preprocessing Functions ---
+warnings.filterwarnings('ignore')
 
-# Function to download NLTK data if not present
-def setup_nltk():
-    """Downloads necessary NLTK data."""
-    try:
-        nltk.data.find('tokenizers/punkt')
-        nltk.data.find('corpora/stopwords')
-        nltk.data.find('corpora/wordnet')
-    except:
-        print("Downloading NLTK data...")
-        nltk.download('punkt', quiet=True)
-        nltk.download('stopwords', quiet=True)
-        nltk.download('wordnet', quiet=True)
-    print("NLTK data is ready.")
+# --- Part 1: Helper Functions ---
 
-# Pre-processing function from your notebook
-def PreProcessText(review):
-    """Cleans and prepares a single review text for the model."""
-    lemmatizer = WordNetLemmatizer()
-    stop_words = set(stopwords.words('english'))
-    stop_words.remove('not')
-    
-    tokens = word_tokenize(review.lower())
-    tokens = [lemmatizer.lemmatize(word) for word in tokens if word.isalnum() and word not in stop_words]
-    return ' '.join(tokens)
-
-# Function to load the saved model and vectorizer
-def load_model():
-    """Loads the serialized vectorizer and model from disk."""
-    try:
-        vectorizer = joblib.load('./api/ml_model/tfidf_vectorizer.joblib')
-        model = joblib.load('./api/ml_model/sentiment_model.joblib')
-        print("✅ Model and vectorizer loaded successfully.")
-        return vectorizer, model
-    except FileNotFoundError:
-        print("❌ Error: Model or vectorizer files not found.")
-        print("Please make sure 'tfidf_vectorizer.joblib' and 'sentiment_model.joblib' are in the same directory as this script.")
-        return None, None
-
-# --- Part 2: Web Scraping Functions (from previous script) ---
-
-def get_app_id_from_name(app_name: str) -> str | None:
-    # (This function is the same as the previous version)
-    driver = None
-    try:
-        options = webdriver.ChromeOptions()
-        options.add_argument("--headless")
-        options.add_argument("--lang=en-US")
-        options.add_argument("--log-level=3")
-        driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
-        search_query = "+".join(app_name.split())
-        url = f"https://play.google.com/store/search?q={search_query}&c=apps"
-        driver.get(url)
-        wait = WebDriverWait(driver, 10)
-        app_link_element = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "a.Qfxief")))
-        app_href = app_link_element.get_attribute('href')
-        app_id = app_href.split('?id=')[-1]
-        print(f"Found App ID for '{app_name}': {app_id}")
-        return app_id
-    except TimeoutException:
-        print(f"Could not find an app named '{app_name}'.")
+def extract_permissions(apk_path):
+    """
+    Extracts all <uses-permission> tags from an APK's AndroidManifest.xml.
+    """
+    if not os.path.exists(apk_path):
+        print(f"❌ Error: File not found at '{apk_path}'")
         return None
-    finally:
-        if driver:
-            driver.quit()
-
-def scrape_review_texts(app_id: str, num_reviews_to_scrape: int = 100) -> list:
-    # (This function is the same as the previous version)
-    driver = None
     try:
-        options = webdriver.ChromeOptions()
-        options.add_argument("--headless")
-        options.add_argument("--lang=en-US")
-        options.add_argument("--log-level=3")
-        driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
-        url = f"https://play.google.com/store/apps/details?id={app_id}"
-        driver.get(url)
-        wait = WebDriverWait(driver, 10)
-        see_all_reviews_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//span[contains(text(), "See all reviews")]/parent::button')))
-        see_all_reviews_button.click()
-        modal_dialog = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.fysCi")))
-        print(f"Scraping review texts for {app_id}...")
-        scraped_texts = []
-        while len(scraped_texts) < num_reviews_to_scrape:
-            last_height = driver.execute_script("return arguments[0].scrollHeight", modal_dialog)
-            driver.execute_script('arguments[0].scrollTop = arguments[0].scrollHeight', modal_dialog)
-            time.sleep(2)
-            new_height = driver.execute_script("return arguments[0].scrollHeight", modal_dialog)
-            if new_height == last_height:
-                print("Reached the end of the reviews.")
-                break
-            soup = BeautifulSoup(driver.page_source, "html.parser")
-            review_blocks = soup.find_all('div', class_='RHo1pe')
-            current_texts_on_page = [block.find('div', class_='h3YV2d').text.strip() for block in review_blocks if block.find('div', class_='h3YV2d')]
-            for text in current_texts_on_page:
-                if text not in scraped_texts:
-                    scraped_texts.append(text)
-            print(f"Collected {len(scraped_texts)} unique review texts so far...")
-        return scraped_texts[:num_reviews_to_scrape]
-    except TimeoutException:
-        print("A timeout occurred while scraping.")
-        return []
-    finally:
-        if driver:
-            driver.quit()
+        apk = APK(apk_path)
+        permissions = apk.permissions
+        return permissions
+    except Exception as e:
+        print(f"❌ Error processing APK: {e}")
+        return None
 
-# --- Part 3: Main Execution ---
+def create_feature_vector(permissions, all_features):
+    """
+    Creates a numerical feature vector from a list of permissions.
+    """
+    feature_vector = np.zeros(len(all_features))
+    feature_index = {feature: i for i, feature in enumerate(all_features)}
+    for p in permissions:
+        if p in feature_index:
+            feature_vector[feature_index[p]] = 1
+    return feature_vector.reshape(1, -1)
 
-if __name__ == "__main__":
-    # Setup and load resources
-    setup_nltk()
-    vectorizer, model = load_model()
+def get_file_hash(file_path):
+    """Calculates the SHA-256 hash of a file."""
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
 
-    if vectorizer is None or model is None:
-        # Exit if the model files couldn't be loaded
-        exit()
+# --- Part 2: Main Prediction Pipeline ---
 
-    # Get user input for the app to analyze
-    app_name_input = input("Enter the name of the app you want to analyze: ")
+def predict_apk_authenticity_and_safety(apk_path):
+    """
+    Analyzes an APK for both authenticity (official vs. mod) and safety (malware vs. benign).
+    """
+    print("-" * 50)
+    print(f"🔍 Analyzing APK: {os.path.basename(apk_path)}")
+
+    # ❗️ IMPORTANT: Paste your free VirusTotal API key here
+    VT_API_KEY = "bfff6b4bcd78a175a3846660095d1057f4b434188562ef059ef0b5478d2f1b50"
+
+    if VT_API_KEY == "YOUR_VIRUSTOTAL_API_KEY_HERE":
+        print("\n❌ FATAL ERROR: Please add your VirusTotal API key to the script.")
+        return
+
+    # Step 1: Load the trained ML model and preprocessors
+    try:
+        model = joblib.load('best_malware_model.joblib')
+        selector = joblib.load('feature_selector.joblib')
+        encoder = joblib.load('label_encoder.joblib')
+        feature_names = joblib.load('feature_names.joblib')
+        print("✅ ML Model and preprocessors loaded successfully.")
+    except FileNotFoundError:
+        print("❌ Error: Model files not found. Ensure they are in the same directory.")
+        return
+
+    # Step 2: Perform Safety Check (using your ML model)
+    permissions = extract_permissions(apk_path)
+    if permissions is None:
+        return # Stop if there was an error reading the APK
+
+    print(f"ℹ️  Found {len(permissions)} permissions in the APK.")
     
-    # Step 1: Find app ID and scrape reviews
-    found_app_id = get_app_id_from_name(app_name_input)
-    if found_app_id:
-        review_texts = scrape_review_texts(found_app_id, 100)
-        
-        if review_texts:
-            print(f"\n✅ Successfully scraped {len(review_texts)} reviews.")
-            
-            # Step 2: Preprocess the scraped reviews
-            processed_reviews = [PreProcessText(review) for review in review_texts]
-            
-            # Step 3: Use the loaded model to predict sentiment
-            predictions = model.predict(vectorizer.transform(processed_reviews))
-            
-            # Step 4: Convert predictions to numbers and calculate the mean
-            numerical_predictions = [1 if p == 'positive' else 0 for p in predictions]
-            mean_sentiment_score = np.mean(numerical_predictions)
-            
-            # Step 5: Display the final result
-            print("\n--- SENTIMENT ANALYSIS RESULTS ---")
-            print(f"Positive Reviews: {np.sum(numerical_predictions)}/{len(predictions)}")
-            print(f"Negative Reviews: {len(predictions) - np.sum(numerical_predictions)}/{len(predictions)}")
-            print(f"\nOverall Sentiment Score: {mean_sentiment_score:.2f}")
-            
-            if mean_sentiment_score > 0.65:
-                print("Verdict: The app has a Generally Positive sentiment based on recent reviews. 👍")
-            elif mean_sentiment_score > 0.45:
-                print("Verdict: The app has a Mixed sentiment based on recent reviews. 🤷")
-            else:
-                print("Verdict: The app has a Generally Negative sentiment. This could indicate a fraudulent or low-quality app. 👎")
+    feature_vector = create_feature_vector(permissions, feature_names)
+    vector_selected = selector.transform(feature_vector)
+    prediction_encoded = model.predict(vector_selected)
+    safety_prediction = encoder.inverse_transform(prediction_encoded)[0]
+    print(f"✅ Safety Check Complete. Prediction: {safety_prediction}")
 
+    # Step 3: Perform Authenticity & Reputation Check (using VirusTotal API)
+    print("⏳ Performing Reputation Check with VirusTotal...")
+    file_hash = get_file_hash(apk_path)
+    headers = {'x-apikey': VT_API_KEY}
+    vt_url = f'https://www.virustotal.com/api/v3/files/{file_hash}'
+
+    # Default to "Unknown" until we get a definitive answer from the API
+    authenticity_prediction = "Unknown" 
+    vt_details = "Could not verify with VirusTotal. Treat as an unverified application."
+
+    try:
+        response = requests.get(vt_url, headers=headers)
+        if response.status_code == 200:
+            data = response.json().get('data', {}).get('attributes', {})
+            stats = data.get('last_analysis_stats', {})
+            malicious_count = stats.get('malicious', 0)
+            suspicious_count = stats.get('suspicious', 0)
+            
+            # A more robust check: Is the file flagged by any security vendors?
+            if malicious_count > 0 or suspicious_count > 0:
+                authenticity_prediction = "Potentially Unwanted / Modified"
+                vt_details = (f"VirusTotal reports {malicious_count} malicious and "
+                            f"{suspicious_count} suspicious detections. High risk.")
+            else:
+                # If there are no malicious flags, we can have higher confidence it's official/unaltered.
+                authenticity_prediction = "Official / Clean"
+                vt_details = "VirusTotal analysis found no malicious detections, suggesting this is a clean, official application."
+                
+        # Handle the case where the file has never been scanned by VirusTotal
+        elif response.status_code == 404:
+            authenticity_prediction = "Unknown"
+            vt_details = "This file has not been seen by VirusTotal before. Authenticity cannot be confirmed."
         else:
-            print("\n❌ Could not scrape any reviews to analyze.")
+            vt_details = f"VirusTotal API responded with status {response.status_code}. Authenticity could not be confirmed."
+    except Exception as e:
+        print(f"❌ VirusTotal API Error: {e}")
+        vt_details = "An error occurred while contacting the VirusTotal API."
+
+    print(f"✅ Reputation Check Complete. Prediction: {authenticity_prediction}")
+
+    # Step 4: Combine Results into a Final Verdict
+    is_safe_ml = (safety_prediction == 'Benign')
+    is_clean_vt = (authenticity_prediction == "Official / Clean")
+
+    print("\n" + "="*25 + " FINAL VERDICT " + "="*25)
+
+    if is_clean_vt and is_safe_ml:
+        print("🏆 Category: Likely Safe & Official App")
+        print("🛡️  Details: Both VirusTotal and the ML model found no signs of malicious activity. Appears to be safe.")
+    elif not is_clean_vt and not is_safe_ml:
+        print("🚨 Category: High-Risk Malicious App")
+        print("❗️ Details: The app is flagged as malicious by VirusTotal AND our model detected malicious permission patterns. Highest risk.")
+    elif not is_clean_vt and is_safe_ml:
+        print("⚠️  Category: Potentially Unwanted App (PUA)")
+        print("❗️ Details: While our permission model didn't find malware, VirusTotal vendors detected suspicious activity. This could be a Mod or adware. Use with extreme caution.")
+    else: # is_clean_vt and not is_safe_ml
+        print("🤔 Category: Suspicious Permissions Detected")
+        print("❗️ Details: VirusTotal found no malware, but our ML model detected a permission pattern commonly associated with malicious apps. This could be a new threat or an aggressive app. Caution advised.")
+
+    print(f"\n- Reputation determined via VirusTotal: {authenticity_prediction}")
+    print(f"- Safety determined via ML Model: {safety_prediction}")
+    print(f"- VirusTotal Details: {vt_details}")
+    print("="*65)
+
+# --- Example Usage ---
+if __name__ == "__main__":
+    # ❗️ IMPORTANT: Replace this with the actual path to your APK file.
+    path_to_apk = "C:/Users/prane/Downloads/legal.apk" 
+
+    # Run the new, combined prediction function
+    predict_apk_authenticity_and_safety(path_to_apk)

@@ -19,11 +19,167 @@ from . import ml_helpers  # Import the helper functions
 ml_helpers.setup_nltk()
 ml_models = ml_helpers.load_all_models()
 from sklearn.preprocessing import StandardScaler # Import StandardScaler
+from . import gemini
+from pyaxmlparser import APK
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+import uuid # To generate unique filenames for temporary storage
  # Assuming functions.py is in the same directory
+# --- View to Serve the Homepage ---
+
+
+# Add these imports at the top of your views.py
+import tempfile
+import hashlib
+
+
+# ... (keep all your existing imports: json, joblib, np, pd, os, etc.)
+
 # --- View to Serve the Homepage ---
 def index(request):
     """Serves the main index.html file."""
     return render(request, 'index.html')
+
+# --- Load ALL Machine Learning Models ---
+
+# (Keep your existing web_model and mobile_app_model_v3 loading logic here)
+# ...
+
+# --- NEW: Load APK Malware Models ---
+try:
+    apk_model = joblib.load(os.path.join(os.path.dirname(__file__), 'ml_model', 'best_malware_model.joblib'))
+    apk_selector = joblib.load(os.path.join(os.path.dirname(__file__), 'ml_model', 'feature_selector.joblib'))
+    apk_encoder = joblib.load(os.path.join(os.path.dirname(__file__), 'ml_model', 'label_encoder.joblib'))
+    apk_feature_names = joblib.load(os.path.join(os.path.dirname(__file__), 'ml_model', 'feature_names.joblib'))
+    print("✅ Successfully loaded APK malware model and preprocessors.")
+except Exception as e:
+    print(f"⚠️ Warning: Could not load APK malware models. Error: {e}")
+    apk_model = None
+
+# --- (Keep all existing helper functions and analyze_website / analyze_mobile_app_new views) ---
+# ... (extract_features_from_url, get_domcop_page_rank, analyze_website, analyze_mobile_app_new, etc.)
+
+# --- NEW: Helper Functions for APK Analysis ---
+
+def extract_permissions_from_apk(apk_path):
+    try:
+        apk = APK(apk_path)
+        return apk.permissions
+    except Exception as e:
+        print(f"❌ Error processing APK permissions: {e}")
+        return None
+
+def create_apk_feature_vector(permissions, all_features):
+    feature_vector = np.zeros(len(all_features))
+    feature_index = {feature: i for i, feature in enumerate(all_features)}
+    for p in permissions:
+        if p in feature_index:
+            feature_vector[feature_index[p]] = 1
+    return feature_vector.reshape(1, -1)
+
+def get_file_hash(file_path):
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
+
+# --- NEW: API Endpoint for APK Analysis ---
+@csrf_exempt
+def analyze_apk(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+    if not apk_model:
+        return JsonResponse({'error': "APK analysis model is not available."}, status=503)
+
+    if 'apk_file' not in request.FILES:
+        return JsonResponse({'error': 'No APK file was uploaded.'}, status=400)
+
+    # Use a temporary file to handle the upload
+    uploaded_apk = request.FILES['apk_file']
+    apk_path = ""
+    
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".apk") as temp_f:
+            for chunk in uploaded_apk.chunks():
+                temp_f.write(chunk)
+            apk_path = temp_f.name
+
+        # --- 1. Safety Check (ML Model) ---
+        permissions = extract_permissions_from_apk(apk_path)
+        if permissions is None:
+            return JsonResponse({'error': 'Could not parse the uploaded file. It may not be a valid APK.'}, status=400)
+
+        feature_vector = create_apk_feature_vector(permissions, apk_feature_names)
+        vector_selected = apk_selector.transform(feature_vector)
+        prediction_encoded = apk_model.predict(vector_selected)
+        safety_prediction = apk_encoder.inverse_transform(prediction_encoded)[0]
+
+        # --- 2. Authenticity Check (VirusTotal API) ---
+        VT_API_KEY = "bfff6b4bcd78a175a3846660095d1057f4b434188562ef059ef0b5478d2f1b50" # It's better to use environment variables
+        file_hash = get_file_hash(apk_path)
+        headers = {'x-apikey': VT_API_KEY}
+        vt_url = f'https://www.virustotal.com/api/v3/files/{file_hash}'
+        
+        authenticity_prediction = "M" # Default assumption
+        
+        try:
+            response = requests.get(vt_url, headers=headers, timeout=15)
+            if response.status_code == 200:
+                data = response.json().get('data', {}).get('attributes', {})
+                stats = data.get('last_analysis_stats', {})
+            malicious_count = stats.get('malicious', 0)
+            suspicious_count = stats.get('suspicious', 0)
+            
+            # A more robust check: Is the file flagged by any security vendors?
+            if malicious_count > 0 or suspicious_count > 0:
+                authenticity_prediction = "Modified"
+                vt_details = (f"VirusTotal reports {malicious_count} malicious and "
+                            f"{suspicious_count} suspicious detections. High risk.")
+            else:
+                # If there are no malicious flags, we can have higher confidence it's official/unaltered.
+                authenticity_prediction = "Official"
+                vt_details = "VirusTotal analysis found no malicious detections, suggesting this is a clean, official application."
+            
+        except requests.RequestException:
+            # If VT fails, we can't verify, so we stick with the default
+            print("⚠️ Warning: Could not connect to VirusTotal API for authenticity check.")
+            pass
+
+        # --- 3. Combine and Respond ---
+        is_safe = (safety_prediction == 'Benign')
+        is_official = (authenticity_prediction == 'Official')
+        
+        if is_official and is_safe:
+            category = "Safe, Official App"
+            details = "This appears to be the original, unmodified app from the developer, and our permission analysis found no signs of malware."
+        elif is_official and not is_safe:
+            category = "Malicious Official App"
+            details = "This appears to be an official app, but our model detected a malicious pattern of permissions. This is a high-risk application."
+        elif not is_official and is_safe:
+            category = "Potentially Safe Mod APK"
+            details = "The app appears to be modified. While our model found no malicious permissions, use it with caution as modifications can introduce hidden risks."
+        else: # Not official and not safe
+            category = "Malicious Mod APK"
+            details = "This app is a modified version AND our model detected malicious permission patterns. This is the highest risk category; avoid using it."
+
+        return JsonResponse({
+            'url': uploaded_apk.name,
+            'category': category,
+            'analysisDetails': details,
+            'safetyPrediction': safety_prediction,
+            'authenticityPrediction': authenticity_prediction,
+            'timestamp': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': f'An unexpected server error occurred: {str(e)}'}, status=500)
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(apk_path):
+            os.remove(apk_path)
 
 # --- Load Machine Learning Models ---
 web_model = ml_models.get('web_model')
@@ -178,47 +334,62 @@ def analyze_website(request):
             
             if not url_to_analyze:
                 return JsonResponse({'error': "URL is required in the request body."}, status=400)
-
-            # --- Real-Time PageRank Fetching using DomCop ---
-            parsed_url = urlparse(url_to_analyze)
-            domain = parsed_url.netloc
-            page_rank_score = get_domcop_page_rank(domain, DOMCOP_API_KEY)
-            
-            overrides = {
-                'domain_registration_length': data.get('domain_registration_length'),
-                'domain_age': data.get('domain_age'),
-                'web_traffic': data.get('web_traffic'),
-                'page_rank': page_rank_score  # Use the fetched score from DomCop
-            }
-
-            features_dict = extract_features_from_url(url_to_analyze, overrides)
-            if 'error' in features_dict:
-                return JsonResponse({'error': features_dict['error']}, status=400)
-
-            feature_order = [
-                'length_url', 'length_hostname', 'ip', 'nb_dots', 'nb_hyphens', 'nb_at', 'nb_qm', 'nb_and', 'nb_or', 'nb_eq', 'nb_underscore', 'nb_tilde', 'nb_percent', 'nb_slash', 'nb_star', 'nb_colon', 'nb_comma', 'nb_semicolumn', 'nb_dollar', 'nb_space', 'nb_www', 'nb_com', 'nb_dslash', 'http_in_path', 'https_token', 'ratio_digits_url', 'ratio_digits_host', 'punycode', 'port', 'tld_in_path', 'tld_in_subdomain', 'abnormal_subdomain', 'nb_subdomains', 'prefix_suffix', 'random_domain', 'shortening_service', 'path_extension', 'nb_redirection', 'nb_external_redirection', 'length_words_raw', 'char_repeat', 'shortest_words_raw', 'shortest_word_host', 'shortest_word_path', 'longest_words_raw', 'longest_word_host', 'longest_word_path', 'avg_words_raw', 'avg_word_host', 'avg_word_path', 'phish_hints', 'suspecious_tld', 'statistical_report', 'nb_hyperlinks', 'ratio_intHyperlinks', 'ratio_extHyperlinks', 'ratio_nullHyperlinks', 'nb_extCSS', 'ratio_intRedirection', 'ratio_extRedirection', 'ratio_intErrors', 'ratio_extErrors', 'login_form', 'external_favicon', 'links_in_tags', 'submit_email', 'ratio_intMedia', 'ratio_extMedia', 'sfh', 'iframe', 'popup_window', 'safe_anchor', 'onmouseover', 'right_clic', 'empty_title', 'domain_in_ip', 'server_client_same_domain', 'check_redirection', 'age_domain', 'nb_page', 'google_index', 'dns_a_record', 'dnssec', 'whois_registered_domain', 'domain_registration_length', 'web_traffic', 'page_rank'
-            ]
-            
-            features = np.array([[features_dict.get(k, 0) for k in feature_order]])
-            
-            if not web_model:
-                return JsonResponse({'error': "Web model not available."}, status=503)
+            gemini.load_gemini_api()
+            geminires = gemini.gemini_analyze(url_to_analyze, gemini.get_gemini_model())
+            print("Gemini Analysis Result:", geminires)  # Debugging line
+            x  = gemini.parse_analysis_to_list(geminires)
+            x = dict(x)
+            fraud_score = gemini.calculate_fraud_percentage(x)
+            print("Calculated Fraud Score:", fraud_score)  # Debugging line
+            if x.get("confidence", "").lower() == "high":
+                return JsonResponse({
+                    'url': url_to_analyze,
+                    'fraudScore': gemini.calculate_fraud_percentage(x),
+                    'category': x.get("verdict", "Unknown"),
+                    'analysisDetails': f"{x.get("verdict", "Unknown"),}:{x.get("reasons", "No reasons provided.")}",
+                    'timestamp': datetime.now().isoformat()
+                })
+            else:
+                # --- Real-Time PageRank Fetching using DomCop ---
+                parsed_url = urlparse(url_to_analyze)
+                domain = parsed_url.netloc
+                page_rank_score = get_domcop_page_rank(domain, DOMCOP_API_KEY)
                 
-            prob = web_model.predict_proba(features)[0][1]
-            score = int(prob * 100)
-            
-            return JsonResponse({
-                'url': url_to_analyze,
-                'fraudScore': score,
-                'category': 'Phishing' if score > 70 else ('Legitimate - But Might Cause Phishing' if score > 50 else 'Legitimate'),
-                'analysisDetails': (
-                    f"Fraud score calculated as {score}%.!<br>"
-                    f"Page Rank score {page_rank_score}/10 was included in the analysis.!<br>"
-                    f"The site was categorized as {'Phishing' if score > 70 else ('Legitimate - But Might Cause Phishing' if score > 50 else 'Legitimate')}<br>"
-                    f"because the score {'exceeded' if score > 50 else 'did not exceed'} the 50% threshold.<br>"
-                ),
-                'timestamp': datetime.now().isoformat()
-            })
+                overrides = {
+                    'domain_registration_length': data.get('domain_registration_length'),
+                    'domain_age': data.get('domain_age'),
+                    'web_traffic': data.get('web_traffic'),
+                    'page_rank': page_rank_score  # Use the fetched score from DomCop
+                }
+
+                features_dict = extract_features_from_url(url_to_analyze, overrides)
+                if 'error' in features_dict:
+                    return JsonResponse({'error': features_dict['error']}, status=400)
+
+                feature_order = [
+                    'length_url', 'length_hostname', 'ip', 'nb_dots', 'nb_hyphens', 'nb_at', 'nb_qm', 'nb_and', 'nb_or', 'nb_eq', 'nb_underscore', 'nb_tilde', 'nb_percent', 'nb_slash', 'nb_star', 'nb_colon', 'nb_comma', 'nb_semicolumn', 'nb_dollar', 'nb_space', 'nb_www', 'nb_com', 'nb_dslash', 'http_in_path', 'https_token', 'ratio_digits_url', 'ratio_digits_host', 'punycode', 'port', 'tld_in_path', 'tld_in_subdomain', 'abnormal_subdomain', 'nb_subdomains', 'prefix_suffix', 'random_domain', 'shortening_service', 'path_extension', 'nb_redirection', 'nb_external_redirection', 'length_words_raw', 'char_repeat', 'shortest_words_raw', 'shortest_word_host', 'shortest_word_path', 'longest_words_raw', 'longest_word_host', 'longest_word_path', 'avg_words_raw', 'avg_word_host', 'avg_word_path', 'phish_hints', 'suspecious_tld', 'statistical_report', 'nb_hyperlinks', 'ratio_intHyperlinks', 'ratio_extHyperlinks', 'ratio_nullHyperlinks', 'nb_extCSS', 'ratio_intRedirection', 'ratio_extRedirection', 'ratio_intErrors', 'ratio_extErrors', 'login_form', 'external_favicon', 'links_in_tags', 'submit_email', 'ratio_intMedia', 'ratio_extMedia', 'sfh', 'iframe', 'popup_window', 'safe_anchor', 'onmouseover', 'right_clic', 'empty_title', 'domain_in_ip', 'server_client_same_domain', 'check_redirection', 'age_domain', 'nb_page', 'google_index', 'dns_a_record', 'dnssec', 'whois_registered_domain', 'domain_registration_length', 'web_traffic', 'page_rank'
+                ]
+                
+                features = np.array([[features_dict.get(k, 0) for k in feature_order]])
+                
+                if not web_model:
+                    return JsonResponse({'error': "Web model not available."}, status=503)
+                    
+                prob = web_model.predict_proba(features)[0][1]
+                score = int(prob * 100)
+                
+                return JsonResponse({
+                    'url': url_to_analyze,
+                    'fraudScore': gemini.calculate_fraud_percentage(x)+score//2,
+                    'category': 'Phishing' if score > 70 else ('Legitimate - But Might Cause Phishing' if score > 50 else 'Legitimate'),
+                    'analysisDetails': (
+                        f"Fraud score calculated as {score}%.!<br>"
+                        f"Page Rank score {page_rank_score}/10 was included in the analysis.!<br>"
+                        f"The site was categorized as {'Phishing' if score > 70 else ('Legitimate - But Might Cause Phishing' if (score > 50 and score < 70) else 'Legitimate')}<br>"
+                        f"because the score {'exceeded' if score > 50 else 'did not exceed'} the 50% threshold.<br>"
+                    ),
+                    'timestamp': datetime.now().isoformat()
+                })
 
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON in request body'}, status=400)
@@ -239,68 +410,89 @@ def analyze_mobile_app_new(request):
         category = data.get('category')
         permissions_from_user = data.get('permissions', {})
 
-        if not category:
-            return JsonResponse({'error': 'App Category is a required field.'}, status=400)
+        if not app_name or not category:
+            return JsonResponse({'error': 'App Name and Category are required fields.'}, status=400)
 
-        # Get a list of the permissions the user actually ticked
+        # --- Step 1: Gather Initial Inputs ---
         ticked_permissions = [perm for perm, value in permissions_from_user.items() if value == 1]
+        found_app_id = ml_helpers.get_app_id_from_name(app_name)
+
+        # --- Step 2: Handle Edge Case (No Inputs) ---
+        # If the app can't be found AND no permissions were given, we can't do anything.
+        if not found_app_id and not ticked_permissions:
+            return JsonResponse({
+                'error': 'Input Error: The app was not found and no permissions were selected. Please provide a valid app name or select permissions to analyze.'
+            }, status=400)
+
+        # --- Step 3: Conditional Analysis Logic ---
         
-        # Check for suspicious permissions based on the rules in ml_helpers.py
-        suspicious_permissions = ml_helpers.check_fraud_by_rules(category, ticked_permissions)
-        suspicious_count = len(suspicious_permissions)
-        
-        fraud_score = 0
-        analysis_details = ""
-        final_category = "Low-Risk App"
-
-        # --- Implement the New Rule Set ---
-
-        if suspicious_count >= 5:
-            # Rule: 5 or more violations is definitely fraud.
-            fraud_score = 95
-            final_category = "High-Risk App"
-            perm_list = ", ".join(suspicious_permissions)
-            analysis_details = f"High-Risk Detected. The app requests {suspicious_count} permissions that are highly unusual for a '{category}' app, including: {perm_list}."
-
-        elif 1 <= suspicious_count <= 4:
-            # Rule: 1 to 4 violations require a review check.
-            analysis_details = f"The app requests {suspicious_count} suspicious permission(s) for a '{category}' app. Checking user reviews to confirm..."
+        # --- CASE 1: App NOT found, but permissions ARE provided ---
+        if not found_app_id:
+            analysis_details = (
+                f"<b>Warning: App not found on Play Store.</b> Analysis is based solely on the permissions you provided. "
+                f"Unverified apps carry inherent risk."
+            )
+            suspicious_permissions = ml_helpers.check_fraud_by_rules(category, ticked_permissions)
+            suspicious_count = len(suspicious_permissions)
             
-            found_app_id = ml_helpers.get_app_id_from_name(app_name)
+            # Scoring: Start with a base risk for being unverified, then add permission penalties.
+            base_risk_unverified = 30 
+            permission_risk = suspicious_count * 15
+            fraud_score = int(min(base_risk_unverified + permission_risk, 99))
             
-            if not found_app_id:
-                # Special Rule: If the app has ANY violation AND cannot be found on the Play Store, it's fraud.
-                fraud_score = 90
-                final_category = "High-Risk App"
-                analysis_details = f"High-Risk Detected. The app has {suspicious_count} suspicious permission(s) and could not be found on the Google Play Store, which is a strong indicator of fraudulent activity."
-            else:
-                # App was found, so proceed to analyze reviews.
-                sentiment_score = 0.5  # Default to neutral
-                review_texts = ml_helpers.scrape_review_texts(found_app_id)
-                
-                if review_texts and sentiment_model and tfidf_vectorizer:
-                    processed_reviews = [ml_helpers.PreProcessText(r) for r in review_texts]
-                    predictions = sentiment_model.predict(tfidf_vectorizer.transform(processed_reviews))
-                    numerical_predictions = [1 if p == 'positive' else 0 for p in predictions]
-                    if numerical_predictions:
-                        sentiment_score = np.mean(numerical_predictions)
-                
-                # Rule: Are the reviews positive enough to overlook the violations?
-                if sentiment_score > 0.6: # More than 60% positive reviews
-                    fraud_score = 55
-                    final_category = "Medium-Risk App"
-                    analysis_details += f" User reviews are generally positive (Sentiment Score: {sentiment_score:.0%}), which lowers the risk. However, caution is still advised due to the unusual permissions."
+            if suspicious_count > 0:
+                perm_list = ", ".join(suspicious_permissions)
+                analysis_details += (
+                    f" The app requests <b>{suspicious_count} suspicious permission(s)</b> for a '{category}' app: {perm_list}."
+                )
+
+        # --- CASE 2: App IS found (permissions may or may not be provided) ---
+        else:
+            # Perform sentiment analysis since the app was found
+            sentiment_score = 0.5  # Default to neutral
+            review_texts = ml_helpers.scrape_review_texts(found_app_id)
+            review_analysis_text = "Could not retrieve user reviews; assuming neutral sentiment. "
+            
+            if review_texts and sentiment_model and tfidf_vectorizer:
+                processed_reviews = [ml_helpers.PreProcessText(r) for r in review_texts]
+                predictions = sentiment_model.predict(tfidf_vectorizer.transform(processed_reviews))
+                numerical_predictions = [1 if p == 'positive' else 0 for p in predictions]
+                if numerical_predictions:
+                    sentiment_score = np.mean(numerical_predictions)
+                review_analysis_text = f"User review sentiment is {sentiment_score:.0%} positive. "
+            
+            # Calculate permission risk (will be 0 if no permissions were ticked)
+            suspicious_permissions = ml_helpers.check_fraud_by_rules(category, ticked_permissions)
+            suspicious_count = len(suspicious_permissions)
+            permission_risk = suspicious_count * 15
+
+            # Base score from sentiment (0-50). 0=perfect reviews, 50=terrible reviews.
+            sentiment_risk = (1 - sentiment_score) * 50
+            
+            # Combine scores
+            fraud_score = int(min(5 + sentiment_risk + permission_risk, 99))
+
+            # Generate analysis details based on what was provided
+            analysis_details = review_analysis_text
+            if ticked_permissions:
+                if suspicious_count > 0:
+                    perm_list = ", ".join(suspicious_permissions)
+                    analysis_details += (
+                        f"It also requests <b>{suspicious_count} suspicious permission(s)</b> for a '{category}' app: {perm_list}."
+                    )
                 else:
-                    fraud_score = 85
-                    final_category = "High-Risk App"
-                    analysis_details += f" The app's user reviews are neutral or negative (Sentiment Score: {sentiment_score:.0%}). Combined with the suspicious permissions, this indicates a high risk."
-        
-        else: # suspicious_count == 0
-            # Rule: No violations, the app is considered safe.
-            fraud_score = 10
-            final_category = "Low-Risk App"
-            analysis_details = f"Low-Risk Detected. No suspicious permissions were found for the '{category}' category. The app appears to follow standard practices."
+                    analysis_details += "No suspicious permissions were found."
+            else:
+                analysis_details += "<b>No permissions were provided for analysis.</b> The score is based only on public reviews."
 
+        # --- Step 4: Determine Final Category & Return Response ---
+        if fraud_score > 75:
+            final_category = "High-Risk App"
+        elif fraud_score > 40:
+            final_category = "Medium-Risk App"
+        else:
+            final_category = "Low-Risk App"
+            
         return JsonResponse({
             'url': app_name,
             'fraudScore': fraud_score,

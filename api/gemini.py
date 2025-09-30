@@ -6,7 +6,7 @@ import unicodedata
 from dotenv import load_dotenv
 import google.generativeai as genai
 
-key="AIzaSyDDXzJILfyL5mJRrfRkkD1FOn1g6DMNRl8"
+key="YOUR_GEMINI_API_KEY"
 # -----------------------------------------------------------
 # 1. Load API Key
 # -----------------------------------------------------------

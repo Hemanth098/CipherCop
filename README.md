@@ -13,7 +13,7 @@ CipherCop is a comprehensive security tool that analyzes websites, mobile apps, 
 
 The application is built on a monolithic Django backend that serves RESTful APIs. Its core relies on a hybrid analysis engine that combines generative AI, pre-trained machine learning models, and external APIs for comprehensive threat detection.
 
-![CipherCop Architecture](./path/to/your/architecture_diagram.png)
+![CipherCop Architecture](Architecture.png)
 
 ---
 

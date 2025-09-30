@@ -118,7 +118,7 @@ def analyze_apk(request):
         safety_prediction = apk_encoder.inverse_transform(prediction_encoded)[0]
 
         # --- 2. Authenticity Check (VirusTotal API) ---
-        VT_API_KEY = "bfff6b4bcd78a175a3846660095d1057f4b434188562ef059ef0b5478d2f1b50" # It's better to use environment variables
+        VT_API_KEY = "YOUR_VT_TOTAL_APIKEY" # It's better to use environment variables
         file_hash = get_file_hash(apk_path)
         headers = {'x-apikey': VT_API_KEY}
         vt_url = f'https://www.virustotal.com/api/v3/files/{file_hash}'

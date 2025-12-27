@@ -13,3 +13,4 @@ google-generativeai
 dotenv
 nltk
 pyaxmlparser
+tensorflow

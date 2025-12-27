@@ -9,7 +9,6 @@ whois
 beautifulsoup4
 requests
 joblib
-re
 google-generativeai
 dotenv
 nltk
